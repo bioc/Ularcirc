@@ -52,19 +52,19 @@ The following demonstrates how to download Ularcirc, install the required databa
 STEP1: Install Ularcirc package
 
 ```
-library(BiocInstaller) 
+library(BiocManager) 
 # use source("http://www.bioconductor.org/biocLite.R") if not available
-biocLite("Ularcirc")
+BiocManager::install("Ularcirc")
 ```
 
 STEP2: Load annotation databases: Ularcirc comes with one existing data set that has been aligned to hg38. While annotation is not required to identify circRNAs we recomment to download the respective human annotation databases as follows:
 
 ```
-library(BiocInstaller) 
+library(BiocManager) 
 # use source("http://www.bioconductor.org/biocLite.R") if not available
-biocLite("BSgenome.Hsapiens.UCSC.hg38")         # Genome; enables sequence analysis
-biocLite("TxDb.Hsapiens.UCSC.hg38.knownGene")   # Transcript database
-biocLite("org.Hs.eg.db")                        # Annotation database
+BiocManager::install("BSgenome.Hsapiens.UCSC.hg38")         # Genome; enables sequence analysis
+BiocManager::install("TxDb.Hsapiens.UCSC.hg38.knownGene")   # Transcript database
+BiocManager::install("org.Hs.eg.db")                        # Annotation database
 ```
 
 STEP3: Start Ularcirc, load annotation database, load project data  
