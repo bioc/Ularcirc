@@ -47,8 +47,9 @@ Ularcirc <- function()
 #' # Example of how to find a relevant database and load the relevant databases:
 #' # This example find hg38 databases
 #' idx <- grep(pattern="hg38", x= compatible_DBs[,"genome"])
-#' source("http://bioconductor.org/biocLite.R")
-#' biocLite(c(compatible_DBs[idx,]))
+#' if (!requireNamespace("BiocManager", quietly=TRUE))
+    #' install.packages("BiocManager")
+#' BiocManager::install(c(compatible_DBs[idx,]))
 #'
 #' @export
 Compatible_Annotation_DBs <- function(search_term ='')
@@ -124,10 +125,10 @@ Compatible_Annotation_DBs <- function(search_term ='')
 ##    short_list <- compatible_databases[idx,]
 ##
 ##
-##  download_commands[[i]] <- paste('biocLite("', Org_Annot_Options[[i]],'") # this downloads organism annotations',sep = "")
-##  download_commands[[i]] <- c(download_commands[[i]], paste('biocLite("BSgenome.',
+##  download_commands[[i]] <- paste('BiocManager::install("', Org_Annot_Options[[i]],'") # this downloads organism annotations',sep = "")
+##  download_commands[[i]] <- c(download_commands[[i]], paste('BiocManager::install("BSgenome.',
 ##                                                            GenomeOptions[[i]],'") # this downloads organism genome',sep = ""))
-##  download_commands[[i]] <- c(download_commands[[i]], paste('biocLite("TxDb.',
+##  download_commands[[i]] <- c(download_commands[[i]], paste('BiocManager::install("TxDb.',
 ##                                                            TxDbOptions[[i]],'")  # This downloads a transcript database',sep=""))
 ##  download_commands[[i]] <- c(first_instruction, download_commands[[i]], final_instruction)
 ##}

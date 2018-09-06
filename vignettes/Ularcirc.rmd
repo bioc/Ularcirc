@@ -53,7 +53,8 @@ STEP1: Install Ularcirc package
 
 ```
 library(BiocManager) 
-# use source("http://www.bioconductor.org/biocLite.R") if not available
+# use if (!requireNamespace("BiocManager", quietly=TRUE)) if not available
+     install.packages("BiocManager") if not available
 BiocManager::install("Ularcirc")
 ```
 
@@ -61,7 +62,8 @@ STEP2: Load annotation databases: Ularcirc comes with one existing data set that
 
 ```
 library(BiocManager) 
-# use source("http://www.bioconductor.org/biocLite.R") if not available
+# use if (!requireNamespace("BiocManager", quietly=TRUE)) if not available
+     install.packages("BiocManager") if not available
 BiocManager::install("BSgenome.Hsapiens.UCSC.hg38")         # Genome; enables sequence analysis
 BiocManager::install("TxDb.Hsapiens.UCSC.hg38.knownGene")   # Transcript database
 BiocManager::install("org.Hs.eg.db")                        # Annotation database
