@@ -42,7 +42,7 @@ Ularcirc <- function()
 #' library('AnnotationHub')
 #' # Prepare a dataframe of all compatible annotation databases
 #' compatible_DBs <- Compatible_Annotation_DBs()
-#' comatile_DBs_human <- Compatible_Annotation_DBs("Hsapiens")
+#' \donttest{ comatile_DBs_human <- Compatible_Annotation_DBs("Hsapiens")}
 #'
 #' # Example of how to find a relevant database and load the relevant databases:
 #' # This example find hg38 databases
