@@ -1,5 +1,16 @@
-CHANGES IN VERSION 1.1.0
+CHANGES IN VERSION 1.1.3
 -------------------------
+NEW FEATURES
+
+    o Added ability to upload CIRI2 and circExplorer2 output
+    o New analysis features: PCA plot, heatmap analysis, distribution analysis
+	
+BUG FIXES
+    o Amended TwoSzabo dataset
+    o Amended workflow to minimise system crashes	
+
+Version 1.0.0
+------------------------
 
 NEW FEATURES
 

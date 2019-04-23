@@ -1,4 +1,6 @@
 library(shiny)
+library(shinydashboard)
+library(shinyjs)
 library(Sushi)
 library(data.table)
 library(shinyFiles)
@@ -6,6 +8,10 @@ library(DT)
 
 
 options(shiny.maxRequestSize=900*1024^2)  # Set upper limit at 900MB
+ularcircVersion <- try(packageVersion("Ularcirc"),silent=TRUE)
+if (length(grep(ularcircVersion, pattern = "Error")) > 0)
+{  ularcircVersion <- "Not detected" }
+
 
 List_Saved_Projects<-function()
 {
@@ -16,17 +22,19 @@ List_Saved_Projects<-function()
 }
 
 # Define UI for dataset viewer application
-shinyUI(fluidPage(
-
-  # Application title
+shinyUI(
+  fluidPage(
+    useShinyjs(),
   titlePanel("UlarCirc : Analysing & Visualising Circular and linear RNA"),
+
 
   sidebarLayout(
     sidebarPanel(
 
 		conditionalPanel('input.PanelSelect === "Setup"',
-		    selectizeInput("Setup_Options",label="Setup configuration",
-		                                choices = c('Load transcript database','Load new data', 'CircRNA education')),br(),br(),
+#		    selectizeInput("Setup_Options",label="Setup configuration",
+        radioButtons("Setup_Options",label="Setup configuration",
+		                                choices = c('Load transcript database','Upload new data', 'CircRNA education')),br(),br(),
 		    conditionalPanel('input.Setup_Options == "Load transcript database"',
   				h4('ORGANISM',style="color:red"),
   				selectizeInput("Annotation_lib",label="Annotation library",choices = List_Species_Files$Org_Annotation_Library, selected="NO_ANNOTATION"),  # List_Species_Files$Org_Annotation_Library[1]),
@@ -35,7 +43,7 @@ shinyUI(fluidPage(
   				textOutput("List_Loaded_TxDB"),  ###  DISPLAY CURRENT LOADED TXDB
   				br()), # 		    conditionalPanel('input.Setup_Options == "Load transcript database"',
 
-		    conditionalPanel('input.Setup_Options == "Load new data"',
+		    conditionalPanel('input.Setup_Options == "Upload new data"',
   				h4('FILTER OPTIONS:',style="color:red"),
 	  			checkboxInput('ChromosomeFilter', 'Same chromosomes:',TRUE),
 		  		conditionalPanel(condition ="input.ChromosomeFilter == true",
@@ -43,7 +51,7 @@ shinyUI(fluidPage(
 			  	checkboxInput('StrandFilter', 'Same strand:',TRUE),
 				  checkboxInput('CanonicalJuncs', 'DON\'T remove any canonical junctions',TRUE),
 
-	        fileInput('JunctionFile', 'Chimeric junction File(s)',multiple=TRUE),   # accept=c('text/csv', 'text/comma-separated-values,text/plain','.csv'),
+	        fileInput('JunctionFile', 'Upload input data files',multiple=TRUE),   # accept=c('text/csv', 'text/comma-separated-values,text/plain','.csv'),
 		      br()),   # conditionalPanel('input.Setup_Options == "Load new data"',
 
 		    conditionalPanel('input.Setup_Options == "CircRNA education"',
@@ -64,7 +72,7 @@ shinyUI(fluidPage(
                     h4('LOAD',style="color:blue"),
                     selectizeInput("LoadExistingProject",label="Choose an pre-existing project",choices =  List_Saved_Projects()),
                     actionButton("LoadProjectRequest","LOAD"),
-                    sliderInput("Number_BiologicalSamples", "Number of biological treatments in data set:",min = 1, max = 10, value = 1),
+                  #  sliderInput("Number_BiologicalSamples", "Number of biological treatments in data set:",min = 1, max = 10, value = 1),
                     uiOutput("DisplayGroupNames"),
                     br()
                       ),
@@ -80,27 +88,32 @@ shinyUI(fluidPage(
 		    h4('DISPLAY MODE:',style="color:red"),
 		    radioButtons("Display_Gene_View_Mode", "",
 		    #selectizeInput("Display_Gene_View_Mode", "",
-		                 choices = c("Display_Gene_Transcripts","Tabulated_Counts"), selected=c("Tabulated_Counts")), #Display_Gene_Transcripts")),
+		                 choices = c("Display_Gene_Transcripts","Tabulate_BSJ_Counts"), selected=c("Tabulate_BSJ_Counts")), #Display_Gene_Transcripts")),
 
 				conditionalPanel('input.Display_Gene_View_Mode == "Display_Gene_Transcripts"',
 				    h4('Gene Display Options',style="color:red"),
 				    uiOutput("Display_Gene_Zoom_Coords"),
-				   # actionButton("Navigate_Around_Gene","Navigate"),
+				   # actionButton("Navigate_Around_Gene","Navigate"), # This button is now built on server side
   				  checkboxInput('ShowTranscriptTable', 'Display transcript table:',FALSE),
 				    checkboxInput('ShowBSJunctionCountTable', 'Display Backsplice junction count data',FALSE),
 				    checkboxInput('ShowCanonicalCountTable', 'Display Canonical junction count data',FALSE),
-				    radioButtons("JunctionType", "Junction Type:",choices = c("Backsplice","Alternative Canonical","All"), selected=c("Backsplice"))
+#				    radioButtons("JunctionType", "Junction Type:",choices = c("Backsplice","Alternative Canonical","All"), selected=c("Backsplice")),
+            br()
 				),
-				conditionalPanel('input.Display_Gene_View_Mode == "Tabulated_Counts"',
+				conditionalPanel('input.Display_Gene_View_Mode == "Tabulate_BSJ_Counts"',
 				    #radioButtons("Annotation_Options",label="Choose how data should be tabulated",
 				    h4('Table Display Options',style="color:red"),
-				    selectizeInput("Annotation_Options",label="Data analysis mode",
-				        choices = c('Selected sample analysis','Grouped analysis')),
+				   # selectizeInput("Annotation_Options",label="Data analysis mode",
+				    #    choices = c('Selected sample analysis','Grouped')),
+				     radioButtons("Annotation_Options",label="Data analysis mode", choices = c('Selected','Grouped'), inline=TRUE),
 				    uiOutput("TwoGroupCompareChoices"),             # This displays a selectizeInput menu for the possible group comparison combinations
-				    checkboxInput('Percent_of_Parent', 'Display % parent transcript:',FALSE),
-				    checkboxInput('Annotate_with_GeneName', "Annotate with parental gene:",TRUE),
-				    checkboxInput('DisplayFilterOptions', "Display filter options:",FALSE),
-				    conditionalPanel('input.DisplayFilterOptions == true',
+
+				    conditionalPanel('input.BSJ_data_source =="STAR"',
+				      checkboxInput('Percent_of_Parent', 'Display % parent transcript:',FALSE),
+				      checkboxInput('Annotate_with_GeneName', "Annotate with parental gene:",TRUE),
+				      checkboxInput('DisplayFilterOptions', "Display filter options:",FALSE)
+				    ),
+					    conditionalPanel('input.DisplayFilterOptions == true',
   				    checkboxInput('Display_RAD_Score', "Apply RAD filter:",TRUE),
 	  			    sliderInput("RAD_filter", "Accepted RAD score", min=0, max=1, value=c(0,1)),
   				    numericInput("RAD_count_threshold", "Minimum count to apply RAD score ", value=9, min = 1, max = 50, step = 1),
@@ -111,11 +124,20 @@ shinyUI(fluidPage(
 				    ),
 				    selectizeInput("MAX_BS_juncs_to_annotate", label= "Number of BS junctions to display",choices= as.numeric(c("5","10","20","35","50","75","100","250","500","1000","2000","5000","20000")), selected=10),
 				    selectizeInput("Normalisation",label="Raw counts or CPM",choices = c("Raw counts","CPM", "CPM_Gene"), selected=c("Raw counts")),
-  				  conditionalPanel('input.Annotation_Options == "Grouped analysis"',
-  				          selectizeInput("DisplayMode",label="Display mode",choices = c("Table", "PCA"), selected=c("Table"))
+  				  conditionalPanel('input.Annotation_Options == "Grouped"',
+  				          selectizeInput("DisplayMode",label="Display mode",choices = c("Table", "Plots"), selected=c("Table"))
   				          ),
-				    actionButton("Annotate_Option_Submit_Button", "Build table"),
-		    br() ),
+				    conditionalPanel('input.DisplayMode != "Plots"', actionButton("buildTable_Button", "Build table")),
+
+				    conditionalPanel('input.DisplayMode == "Plots"',
+				            selectizeInput("Global_Analysis_Plots_Options",label="Please select plot",
+				                  choices = c("PCA","Heatmap","Unique Number of circRNAs","Genes producing circRNAs",
+				                                  "Cummulative distribution"),
+				                                  # "circRNA size distribution"),
+				                                    selected=c("Unique Number of circRNAs"))
+				    ),
+		        br()
+		    ), # conditionalPanel('input.Display_Gene_View_Mode == "Tabulate_BSJ_Counts"
 				br()
 			), #conditionalPanel
     conditionalPanel('input.PanelSelect == "Genome_View" && output.fileUploaded == true',
@@ -147,15 +169,14 @@ shinyUI(fluidPage(
       		    #			  checkboxInput('Sequence_motif_analysis', 'Search for sequence motifs',TRUE),
     		    checkboxInput('circRNA_sequence_checkbox','Display circRNA sequence', FALSE),
     		    checkboxInput('Display_STAR_junction_data', 'Display raw data',FALSE),
-    		    checkboxInput('Display_FAD', 'Display Distribution of reads across BSJ',FALSE),br(),
-    		    sliderInput("FragSize", "Fragment size:",min = 100, max = 500, value = 300),
-    		    sliderInput("ReadLength", "Read length:",min = 50, max = 300, value = 100),
-    		    actionButton("PE_Fastq_Request", "Generate fastq file (paired end)"),br(),
+    #		    checkboxInput('Display_FAD', 'Display Distribution of reads across BSJ',FALSE),br(),
+    #		    sliderInput("FragSize", "Fragment size:",min = 100, max = 500, value = 300),
+  #  		    sliderInput("ReadLength", "Read length:",min = 50, max = 300, value = 100),
+  #  		    actionButton("PE_Fastq_Request", "Generate fastq file (paired end)"),br(),
   				  br()), # conditionalPanel('input.Junction_View_Mode == "Backsplice"',
 
   	  	conditionalPanel('input.Junction_View_Mode == "Canonical"',
-		        h4('Display local gene map'),
-		        h4('Display sequence - define squence length'),
+#		        h4('Display local gene map'),
 		        br()),
 		      br()
 
@@ -171,22 +192,21 @@ shinyUI(fluidPage(
 			id = 'PanelSelect',
 			tabPanel('Setup',
 				conditionalPanel('input.Setup_Options == "Load transcript database"',
-  				p('Welcome to Ularcirc!'),
+  				p(paste('Welcome to Ularcirc! Version:',ularcircVersion)),
   				p('If you are new to circular RNAs you may want to select "circRNA Education" from setup options configuration menu on left.',
-              'Don\'t forget to come back here when done'),
+              'Don\'t forget to come back here when done.'),
 
   				p(h4('Instructions:'),' To get started follow the steps listed below:'),br(),
   				p(strong('STEP 1:'),'Load transcriptional database.',br(),
             'Select appropriate organism, genome and transcript database options and press load in side tab.',br(),
-  				  'The database loaded will be listed below LOAD button when ready'),br(),
+  				  'The database loaded will be listed below LOAD button when ready.'),br(),
 
-  				br(),
   				p(strong('STEP 2: '),'Load data.',br(),
               'This can either be an existing project which can be loaded under the Project tab.',br(),
   				    'Alternatively you can uploading new data. Select "Load new data" under setup option configuration on side menu.',
   				    'Select filter options and then click upload file button to load data.
                 Once data is loaded you can navidate to project tab to save as a project.
-  				      Note that reads that are filtered out are removed permanently'),
+  				      Note that reads that are filtered out are removed permanently.'),
   				br(),
   				p(strong('STEP 3: '),'Search for circRNA.',br(),
   				  'Under Gene tab you can either navidate to your favourite gene or build tables of abundant circRNAs.',
@@ -194,13 +214,13 @@ shinyUI(fluidPage(
 
   				br(),
   				p(strong('STEP 4: '),'Explore junction data.',br(),
-  				  'After selecting junction(s) of interest navigate to the Junction tab which will provide a detailed report on the type of junction selected'),
+  				  'After selecting junction(s) of interest navigate to the Junction tab which will provide a detailed report on the type of junction selected.'),
 
   				br(),br(),
-  				p('Keep an eye on the Ularcirc website for future updates and functionality'),
+  				p('Keep an eye on the Ularcirc website for future updates and functionality.'),
   				br()),   #conditionalPanel('input.Setup_Options == "Load transcript database"',
 
-				conditionalPanel('input.Setup_Options == "Load new data"',
+				conditionalPanel('input.Setup_Options == "Upload new data"',
 
     			h4("Input file details:"),
 				  tableOutput("FileNameDataTable"),
@@ -213,7 +233,7 @@ shinyUI(fluidPage(
 				  p('By identifying backsplice junctions (BSJ).
 				      A BSJ is ultimately  a 2nt sequence which represent a donor and acceptor base from asyncronous exon(s) sequence.
 				      Sequencing Reads from circRNA may not always include a BSJ. A type I read is indistinguisable from reads that align to linear RNA.
-              Type II/III/IV reads are those that cap capture a BSJ.
+              Type II/III/IV reads are those that capture a BSJ.
 				      The graph below demonstrates the longer a circRNA is the less chance of detecting a BSJ.'),
 				  plotOutput("circRNA_Read_Distribution"),
 
@@ -222,7 +242,7 @@ shinyUI(fluidPage(
             Highlighted cells estimate the coverage of read types that have not been detected.
 				    '),
 				  DT::dataTableOutput("Predicted_Read_Distribution"),
-				  p('* Detection of TypeIV reads may vary depending on the pipeline used and therefore what is displayed above may not be accurate'),
+		#		  p('* Detection of TypeIV reads may vary depending on the pipeline used and therefore what is displayed above may not be accurate'),
 			#    uiOutput("Predicted_Read_Distribution"),
 				  ## Table of expected Read type distributions
 
@@ -251,13 +271,23 @@ shinyUI(fluidPage(
 					br()),
 
 				conditionalPanel(condition = "output.fileUploaded == true",
-				  verbatimTextOutput("ShowDataSets_on_GeneView"),
+				  # Display option of what datasets to display
+
+				  checkboxInput("DataSourceOptions", "Show data source options", TRUE),
+#          checkboxGroupInput("DataSourceOptions", choices=c("Show data source options","Show sample IDs"), choiceValues=TRUE, inLine=TRUE),
+				  fluidRow(
+				    shinydashboard::box(id="box1", background="red",  solidHeader = F, collapsible = F,
+				      uiOutput("DisplayDataSetButtons")
+				      ),
+				    verbatimTextOutput("ShowDataSets_on_GeneView")
+				  ),
+
 				  conditionalPanel('input.Display_Gene_View_Mode == "Display_Gene_Transcripts"',
-				      selectInput("GeneListDisplay", "Please wait while preparing gene list
-				                     (if this does not update please check that a database has been seected under setup tab)", choices = NULL),
-				      actionButton(inputId = "Update_Gene_of_Interest",label = "View Gene"),
-					    #uiOutput("DisplayGeneList"),
-					    plotOutput("distPlot"),
+				      selectInput("GeneListDisplay", NULL, choices = NULL),
+				      actionButton(inputId = "Update_Gene_of_Interest",label = "Select Gene"),
+					   # uiOutput("DisplayDataSetButtons"),  # To display Ularcirc | circExplorer or other input data sets
+					    plotOutput("plotFSJ_BSJ_GeneModel"),
+					   downloadButton('download_FSJ_BSJ_GeneModel_PDF','PDF' ),
 
 					    conditionalPanel(condition = "input.ShowTranscriptTable == true ",
 					      h4('Transcript Table'),
@@ -268,13 +298,13 @@ shinyUI(fluidPage(
 		              ), # conditionalPanel(condition = "output.ShowExonTable == true ",
 
 					    conditionalPanel(condition = "input.ShowBSJunctionCountTable == true ",
-						    h5('Backsplice Junction table') ,
+						    h4('Backsplice Junction table') ,
 						    downloadButton('download_BS_Junc_Count_Table','Download BSJ' ),
 						    DT::dataTableOutput("BS_Junction_Count_Table")
 					       ), # conditionalPanel(condition = "input.ShowBSJunctionCountTable == true "
 
 				 		  conditionalPanel(condition = "input.ShowCanonicalCountTable == true",
-			  		    h5('Canonical Junction table'),
+			  		    h4('Forward Junction table'),
 			  		    downloadButton('download_FSJ_Junc_Count_Table','Download FSJ' ),
 						    DT::dataTableOutput("CanonicalJunctionCountTable")
 		              ), # conditionalPanel(condition = "ShowCanonicalCountTable == true",
@@ -284,21 +314,33 @@ shinyUI(fluidPage(
 
 				  # Following conditionalPanel is set up based on previous menu settings shown below
 				  # selectizeInput("Annotation_Options",label="Data sets to analyse",
-				  #           choices = c('Selected sample analysis','Grouped analysis'))
-				  conditionalPanel('input.Display_Gene_View_Mode == "Tabulated_Counts"',
-				      conditionalPanel('input.Annotation_Options == "Selected sample analysis"',
-    					  h4('Junction table of selected data sets'),
-    					  downloadButton('downloadSelectJunctionCountTable','Download' ),
-					      DT::dataTableOutput("DisplayJunctionCountTable"),
+				  #           choices = c('Selected','Grouped analysis'))
+				  conditionalPanel('input.Display_Gene_View_Mode == "Tabulate_BSJ_Counts"',
+				      conditionalPanel('input.Annotation_Options == "Selected"',
+    					  #h4('Junction table of selected data sets'),
+    					  uiOutput("BSJ_count_table_header"),
+    					  conditionalPanel('input.BSJ_data_source =="STAR"',
+      					  downloadButton('downloadSelectJunctionCountTable','Download' ),
+	  				      DT::dataTableOutput("DisplayJunctionCountTable")
+      					  ),
+    					  conditionalPanel('input.BSJ_data_source !="STAR"',
+    					     DT::dataTableOutput("Display_externalBSJ_CountTable")
+    					     ),
 					      br() ),
-				      conditionalPanel('input.Annotation_Options == "Grouped analysis"',
+				      conditionalPanel('input.Annotation_Options == "Grouped"',
 				        # Following conditional Panel is set up based on previous menu setting shown below:
 				        # selectizeInput("DisplayMode",label="Display mode",
 				        #             choices = c("Table","Heat map", "Volcano plot"), selected=c("Table"))
 				        conditionalPanel('input.DisplayMode == "Table"',
 				          h4('Junction table of grouped data sets'),
-				          downloadButton('downloadGroupedJunctionCountTable','Download' ),
-				          DT::dataTableOutput("DisplayGroupJunctionCountTable"),
+				          conditionalPanel('input.BSJ_data_source =="STAR"',
+  				          downloadButton('downloadGroupedJunctionCountTable','Download' ),
+	  			          DT::dataTableOutput("DisplayGroupJunctionCountTable")
+				          ),
+				          conditionalPanel('input.BSJ_data_source !="STAR"',
+                  #  downloadButton('downloadGroupedJunctionCountTable','Download' ),
+				            DT::dataTableOutput("Display_externalBSJ_GroupCountTable")
+				          ),
 				          br() ),
 				        conditionalPanel('input.DisplayMode == "Heat map"',
 				          h4('Heat map of grouped data sets'),
@@ -309,50 +351,18 @@ shinyUI(fluidPage(
 				          plotOutput("DisplayBSJ_PCA"),
 				        #  DT::dataTableOutput("DisplayJunctionCountTable"),
 				          br() ),
-				        br() ),
-
-					   br() ),
-
-					br() )
+				        conditionalPanel('input.Global_Analysis_Plots_Options == "Heatmap"',
+				          selectInput("HeatmapGeneNumber",label="Number of variable genes",choices = seq(from=10,to=50,by=10),selected = 10),
+				          p("Note: Following heatmap plots the most variable genes in data set, this is not a statistical test.")
+				        ),
+				        conditionalPanel('input.DisplayMode == "Plots"',
+				          plotOutput("Global_Analysis_Plots")
+				          ),
+				        br() ), # conditionalPanel('input.Annotation_Options == "Grouped"',
+					   br() ), # conditionalPanel('input.Display_Gene_View_Mode == "Tabulate_BSJ_Counts"',
+					br() ) # conditionalPanel(condition = "output.fileUploaded == true",
 
 				),		# tabPanel 'Gene_View'
-
-	    tabPanel('Genome_View',
-	         conditionalPanel(condition = "output.fileUploaded == false",
-	                          br(),br(),
-	                          h4('No uploaded file detected, please wait or go back to "Setup" tab and load a data set',style="color:red"),
-	                          br()),
-
-	         conditionalPanel(condition = "output.fileUploaded == true",
-
-	                          verbatimTextOutput("ShowDataSets_on_Genome_View"),
-
-	                          plotOutput("genomePlot"),
-
-	                          conditionalPanel(condition = "input.ShowExonTable == true ",
-	                                           h5('Exon Table') #,
-	                                           #DT::dataTableOutput("ExonTable")  # Need to make genome version
-	                          ),
-
-	                          conditionalPanel(condition = "input.ShowGeneJunctionTable == true ",
-	                                           h5('Junction table')
-	                                           #DT::dataTableOutput("JunctionTable") # Need to make genome version
-	                          ),
-	                          conditionalPanel(condition = "input.ShowGenomeCanonicalCountTable == true",
-	                                           h5('Canonical Junction table'),
-	                                           DT::dataTableOutput("GenomeCanonicalJunctionCountTable")
-	                                           ), # conditionalPanel(condition = "ShowGenomeCanonicalCountTable == true",
-	                          conditionalPanel(condition = "input.ShowFSJ_Sequence == true",
-	                                           h5('Junction sequence'),
-	                                           uiOutput("Predicted_Genomic_Junction_Sequence")
-	                                            ),
-
-	                          br())
-
-
-
-	    ),		# tabPanel 'Genome_View'
-
 
 			tabPanel('Junction_View',
 				conditionalPanel(condition = "output.fileUploaded == false",
@@ -360,8 +370,7 @@ shinyUI(fluidPage(
 					h3('No file loaded, go back to "Setup" tab and load a data set',style="color:red"),
 					br()),
 
-				conditionalPanel(condition = "output.fileUploaexport(UTR_3p[Multi_UTR_3p_idx], 'c:/temp/multi_3p.gtf')
-ded == true",
+				conditionalPanel(condition = "output.fileUploaded == true",
 				  verbatimTextOutput("ShowDataSets_on_JunctionView"),
 				  conditionalPanel('input.Junction_View_Mode == "Backsplice"',
   					uiOutput("DisplayBS_sequence_details"),
@@ -401,11 +410,47 @@ ded == true",
 				    verbatimTextOutput("DisplayCanonical_sequence"),br(),br(),   #renderText
 				    br()),
 				  br()
-				) 		# tabPanel 'Junction_View'
+				), 		# tabPanel 'Junction_View'
+# Blocking out Genome_View panel unless specifically selected
+conditionalPanel('input.DisplayMode == "whatever"',
+       tabPanel('Genome_View',
+                conditionalPanel(condition = "output.fileUploaded == false",
+                                 br(),br(),
+                                 h4('No uploaded file detected, please wait or go back to "Setup" tab and load a data set',style="color:red"),
+                                 br()),
+
+                conditionalPanel(condition = "output.fileUploaded == true",
+
+                                 verbatimTextOutput("ShowDataSets_on_Genome_View"),
+
+                                 plotOutput("genomePlot"),
+
+                                 conditionalPanel(condition = "input.ShowExonTable == true ",
+                                                  h5('Exon Table') #,
+                                                  #DT::dataTableOutput("ExonTable")  # Need to make genome version
+                                 ),
+
+                                 conditionalPanel(condition = "input.ShowGeneJunctionTable == true ",
+                                                  h5('Junction table')
+                                                  #DT::dataTableOutput("JunctionTable") # Need to make genome version
+                                 ),
+                                 conditionalPanel(condition = "input.ShowGenomeCanonicalCountTable == true",
+                                                  h5('Canonical Junction table'),
+                                                  DT::dataTableOutput("GenomeCanonicalJunctionCountTable")
+                                 ), # conditionalPanel(condition = "ShowGenomeCanonicalCountTable == true",
+                                 conditionalPanel(condition = "input.ShowFSJ_Sequence == true",
+                                                  h5('Junction sequence'),
+                                                  uiOutput("Predicted_Genomic_Junction_Sequence")
+                                 ),
+
+                                 br())
+
+       )		# tabPanel 'Genome_View'
+) # conditionalPanel(condition = 'input.DisplayMode == "whatever"',
+
+
 
 			)	# tabsetPanel
-
-
 
     ) # main panel
   ) # sidebarLayout
