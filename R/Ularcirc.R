@@ -48,7 +48,10 @@ Ularcirc <- function()
 #' # This example find hg38 databases
 #' idx <- grep(pattern="hg38", x= compatible_DBs[,"genome"])
 #' source("http://bioconductor.org/biocLite.R")
-#' \donttest{ biocLite(c(compatible_DBs[idx,])) }
+#' \donttest{ 
+#'    if (!requireNamespace("BiocManager", quietly=TRUE))
+#'        install.packages("BiocManager")
+#' 	  BiocManager::install(c(compatible_DBs[idx,])) }
 #'
 #' @export
 Compatible_Annotation_DBs <- function(search_term ='')
