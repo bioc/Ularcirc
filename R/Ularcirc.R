@@ -47,7 +47,6 @@ Ularcirc <- function()
 #' # Example of how to find a relevant database and load the relevant databases:
 #' # This example find hg38 databases
 #' idx <- grep(pattern="hg38", x= compatible_DBs[,"genome"])
-#' source("http://bioconductor.org/biocLite.R")
 #' \donttest{ 
 #'    if (!requireNamespace("BiocManager", quietly=TRUE))
 #'        install.packages("BiocManager")
