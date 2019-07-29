@@ -27,6 +27,8 @@ Takes one BSJ coordinate and generates a predicted circular RNA sequence.
 \examples{
 
 library('Ularcirc')
+library('BSgenome.Hsapiens.UCSC.hg38')
+library('TxDb.Hsapiens.UCSC.hg38.knownGene')
 TxDb <- TxDb.Hsapiens.UCSC.hg38.knownGene::TxDb.Hsapiens.UCSC.hg38.knownGene
 genome <- BSgenome.Hsapiens.UCSC.hg38::BSgenome.Hsapiens.UCSC.hg38
 BSJ  <- 'chr2_40430305_chr2_40428472'   # chr2_40430302_chr2_40428472
@@ -34,7 +36,5 @@ annotationLibrary <- org.Hs.eg.db
 BSJ_to_circRNA_sequence(BSJ, "SLC8A1", genome,TxDb, annotationLibrary)
 # chr11_33286412_chr11_33287512
 
-TxDb_hg19 <- TxDb.Hsapiens.UCSC.hg19.knownGene::TxDb.Hsapiens.UCSC.hg19.knownGene
-genome_hg19 <- BSgenome.Hsapiens.UCSC.hg19::BSgenome.Hsapiens.UCSC.hg19
 
 }
