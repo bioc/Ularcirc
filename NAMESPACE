@@ -2,3 +2,5 @@
 
 export(Compatible_Annotation_DBs)
 export(Ularcirc)
+export(bsj_fastq_generate)
+export(bsj_to_circRNA_sequence)

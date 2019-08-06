@@ -2,6 +2,7 @@
 .RData
 .Rhistory
 .Rbuildignore
+.BBSoptions
 inst/doc
 docs
 docs/*

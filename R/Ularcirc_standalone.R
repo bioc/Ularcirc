@@ -5,7 +5,7 @@ circRNA_seq_example <- "GGAAGAGGAAGAACGTCTGAGAAATAAAATTCGAGCTGATCATGAGAAGGCCTTGG
 
 
 ####
-#' BSJ_to_circRNA_sequence
+#' bsj_to_circRNA_sequence
 #'
 #' Takes one BSJ coordinate and generates a predicted circular RNA sequence.
 #' @param BSJ : BSJ coordinate
@@ -24,9 +24,16 @@ circRNA_seq_example <- "GGAAGAGGAAGAACGTCTGAGAAATAAAATTCGAGCTGATCATGAGAAGGCCTTGG
 #' genome <- BSgenome.Hsapiens.UCSC.hg38::BSgenome.Hsapiens.UCSC.hg38
 #' BSJ  <- 'chr2_40430305_chr2_40428472'   # chr2_40430302_chr2_40428472
 #' annotationLibrary <- org.Hs.eg.db
-#' BSJ_to_circRNA_sequence(BSJ, "SLC8A1", genome,TxDb, annotationLibrary)
-#' # chr11_33286412_chr11_33287512
+#' bsj_to_circRNA_sequence(BSJ, "SLC8A1", genome,TxDb, annotationLibrary)
 #'
+#' # Define BSJ. Following two formats are accepted
+#' BSJ <- 'chr2:40430305-40428472:-'       # SLC8A1
+#' BSJ  <- 'chr2_40430305_chr2_40428472'   # SLC8A1
+#'
+#' circRNA_sequence <- bsj_to_circRNA_sequence(BSJ, "SLC8A1", genome,TxDb, annotationLibrary)
+#'
+#' # You can also retrieve sequence without passing gene annotation - but this is slower
+#' # circRNA_sequence <- bsj_to_circRNA_sequence(BSJ, NULL, genome,TxDb, annotationLibrary)
 #'
 #' @export
 BSJ_to_circRNA_sequence <- function(BSJ, geneID=NULL, genome, TxDb, annotationLibrary)
@@ -165,14 +172,17 @@ BSJ_to_circRNA_sequence <- function(BSJ, geneID=NULL, genome, TxDb, annotationLi
 
 
 ####
-#' BSJ_Fastq_Generate
+#' bsj_fastq_generate
 #'
 #' Takes a circRNA predicted sequence and generates synthetic sequence reads that
 #' @param circRNA_Sequence : Linear sequence of a circRNA. i.e. the backspice junction
 #'               is the first and last base of this sequence
 #' @param fragmentLength : Is the length f the library fragment
 #' @param readLength : The sequence read length
-#' @return Returns a list DNAstring sets.
+#' @param variations : Number of sequences returned for each read type. Note each
+#' sequence variation will start at a unique location (where possible)
+#' @param headID : Character identifier that will be incorporated into sequence header
+#' @return Returns a list of two DNAstring sets labelled "read1" and "read2" which correspond
 #' @examples
 #'
 #' library('Ularcirc')
