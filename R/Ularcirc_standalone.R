@@ -5,7 +5,7 @@ circRNA_seq_example <- "GGAAGAGGAAGAACGTCTGAGAAATAAAATTCGAGCTGATCATGAGAAGGCCTTGG
 
 
 ####
-#' BSJ_to_circRNA_sequence
+#' bsj_to_circRNA_sequence
 #'
 #' Takes one BSJ coordinate and generates a predicted circular RNA sequence.
 #' @param BSJ : BSJ coordinate in the format of chr_coordinate_chr_coorindate OR chr:coordinate-coorindate:strand.
@@ -28,10 +28,10 @@ circRNA_seq_example <- "GGAAGAGGAAGAACGTCTGAGAAATAAAATTCGAGCTGATCATGAGAAGGCCTTGG
 #' BSJ <- 'chr2:40430305-40428472:-'       # SLC8A1
 #' BSJ  <- 'chr2_40430305_chr2_40428472'   # SLC8A1
 #'
-#' circRNA_sequence <- BSJ_to_circRNA_sequence(BSJ, "SLC8A1", genome,TxDb, annotationLibrary)
+#' circRNA_sequence <- bsj_to_circRNA_sequence(BSJ, "SLC8A1", genome,TxDb, annotationLibrary)
 #'
 #' # You can also retrieve sequence without passing gene annotation - but this is slower
-#' # circRNA_sequence <- BSJ_to_circRNA_sequence(BSJ, NULL, genome,TxDb, annotationLibrary)
+#' # circRNA_sequence <- bsj_to_circRNA_sequence(BSJ, NULL, genome,TxDb, annotationLibrary)
 #'
 #' @export
 bsj_to_circRNA_sequence <- function(BSJ, geneID=NULL, genome, TxDb, annotationLibrary)
@@ -177,7 +177,7 @@ bsj_to_circRNA_sequence <- function(BSJ, geneID=NULL, genome, TxDb, annotationLi
 
 
 ####
-#' BSJ_Fastq_Generate
+#' bsj_fastq_generate
 #'
 #' Takes a circRNA predicted sequence and generates synthetic short sequence reads
 #' @param circRNA_Sequence : Linear sequence of a circRNA. i.e. the backspice junction
@@ -189,7 +189,7 @@ bsj_to_circRNA_sequence <- function(BSJ, geneID=NULL, genome, TxDb, annotationLi
 #' @param headID : Character identifier that will be incorporated into sequence header
 #' @return Returns a list of two DNAstring sets labelled "read1" and "read2" which correspond
 #' to forward and reverse read pairs.
-#' @details
+#'
 #' @examples
 #'
 #' library('Ularcirc')
