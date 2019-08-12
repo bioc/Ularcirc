@@ -70,9 +70,9 @@ bsj_to_circRNA_sequence <- function(BSJ, geneID=NULL, genome, TxDb, annotationLi
     g_GR <- GenomicFeatures::genes(TxDb)
     strand <- "*"
     bs_junc_gr <- GenomicRanges::GRanges(seqnames=BSjuncDetails[[1]][1], ranges = as.numeric(min(BSjuncDetails[[1]][c(2,4)]),min(BSjuncDetails[[1]][c(2,4)])),strand = strand)
-    t_start <- GenomicAlignments::findOverlaps(invertStrand(bs_junc_gr),g_GR, type=c("within"))
+    t_start <- GenomicAlignments::findOverlaps(BiocGenerics::invertStrand(bs_junc_gr),g_GR, type=c("within"))
     bs_junc_gr <- GenomicRanges::GRanges(seqnames=BSjuncDetails[[1]][1], ranges = as.numeric(max(BSjuncDetails[[1]][c(2,4)]),max(BSjuncDetails[[1]][c(2,4)])),strand = strand)
-    t_end <- GenomicAlignments::findOverlaps(invertStrand(bs_junc_gr),g_GR, type=c("within"))
+    t_end <- GenomicAlignments::findOverlaps(BiocGenerics::invertStrand(bs_junc_gr),g_GR, type=c("within"))
 
     entrezID <- c("Novel")
     #	  browser()

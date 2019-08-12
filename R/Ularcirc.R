@@ -41,11 +41,11 @@ Ularcirc <- function()
 #' library('httpuv')
 #' library('AnnotationHub')
 #' # Prepare a dataframe of all compatible annotation databases
-#' \donttest{ comatile_DBs_human <- Compatible_Annotation_DBs("Hsapiens")}
+#' \dontrun{ compatile_DBs_human <- Compatible_Annotation_DBs("Hsapiens")}
 #'
 #' # Example of how to find a relevant database and load the relevant databases:
 #' # This example find hg38 databases
-#' idx <- grep(pattern="hg38", x= compatible_DBs[,"genome"])
+#' idx <- grep(pattern="hg38", x= compatible_DBs_human[,"genome"])
 #' \dontrun{ 
 #'    if (!requireNamespace("BiocManager", quietly=TRUE))
 #'        install.packages("BiocManager")
