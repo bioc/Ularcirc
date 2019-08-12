@@ -27,13 +27,11 @@ library('BSgenome')
 library('httpuv')
 library('AnnotationHub')
 # Prepare a dataframe of all compatible annotation databases
-
 \dontrun{ compatile_DBs_human <- Compatible_Annotation_DBs("Hsapiens")}
 
 # Example of how to find a relevant database and load the relevant databases:
-# This example find hg19 databases
-idx <- grep(pattern="hg19", x= compatible_DBs[,"genome"])
-source("http://bioconductor.org/biocLite.R")
+# This example find hg38 databases
+idx <- grep(pattern="hg38", x= compatible_DBs_human[,"genome"])
 \dontrun{ 
    if (!requireNamespace("BiocManager", quietly=TRUE))
        install.packages("BiocManager")
