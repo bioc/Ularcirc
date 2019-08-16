@@ -11,17 +11,21 @@ bsj_fastq_generate(circRNA_Sequence, fragmentLength = 300,
 \item{circRNA_Sequence}{: Linear sequence of a circRNA. i.e. the backspice junction
 is the first and last base of this sequence}
 
-\item{fragmentLength}{: Is the length f the library fragment}
+\item{fragmentLength}{: Is the length the library fragment}
 
 \item{readLength}{: The sequence read length}
-\item{variations}{: Number of sequences returned for each read type. Note each sequence variation will start at a unique location (where possible)}
-\item{headID}{: Character identifier that will be incorporated into sequence header }
+
+\item{variations}{: Number of sequences returned for each read type. Note each
+sequence variation will start at a unique location (where possible)}
+
+\item{headID}{: Character identifier that will be incorporated into sequence header}
 }
 \value{
-Returns a list of two DNAstring sets labelled "read1" and "read2" which correspond to forward and reverse read pairs.
+Returns a list of two DNAstring sets labelled "read1" and "read2" which correspond
+to forward and reverse read pairs.
 }
 \description{
-Takes a circRNA predicted sequence and generates synthetic sequence reads that
+Takes a circRNA predicted sequence and generates synthetic short sequence reads
 }
 \examples{
 
@@ -30,14 +34,15 @@ library('Ularcirc')
 
 # Obtain a circRNA sequence
 circRNA_Sequence <- "GGAAGAGGAAGAACGTCTGAGAAATAAAATTCGAGCTGATCATGAGAAGGCCTTGGAAGAAGCAAAAGAAAAATTAAGAAAGTCAAGAGAGGAAATTCGAGCAGAAATTCAGACAGAGAAAAATAAGGTAGTCCAAGAAATGAAGATAAAAGAGAACAAGCCACTGCCACCAGTCCCTATTCCCAACCTTGTAGGAATACGTGGTGGAGACCCAGAAGATAATGACATAAGAGAGAAAAGGGAAAAAATTAAAGAGATGATGAAACATGCTTGGGATAACTATAGGACATATGGGTGGGGACATAATGAACTCAGACCTATTGCAAGGAAAGGACACTCCCCTAACATATTTGGAAGTTCACAAATGGGTGCTACCATAGTAGATGCTTTGGATACCCTTTATATCATGGGACTTCATGATGAATTCCTAGATGGGCAAAGATGGATTGAAGACAACCTTGATTTCAGTGTGAATTCAGAGGTGTCTGTGTTTGAAGTCAACATTCGATTTATTGGAGGCCTACTTGCAGCATATTACCTATCAGGAGAGGAG"
-fastqReads <- bsj_fastq_generate(circRNA_Sequence, fragmentLength=300, readLength=100, variations = 4, headerID='circRNA_example')
+fastqReads <- bsj_fastq_generate(circRNA_Sequence, fragmentLength=300, readLength=100,
+               variations = 4,   # Four type I , II, III, and IV reads generated
+               headerID='circRNA_example')  # Identifier incorporated in name of each sequence
 # The following will indicate 12 sequences are present in each list entry
 length(fastqReads$read1)
 length(fastqReads$read2)
 
-# can create fastq files as follows
-Biostrings::writeXStringSet(fastqReads$Read_One,"circRNA_Sample_R1.fastq.gz",compress = TRUE, format="fastq")
-Biostrings::writeXStringSet( fastqReads$Read_Two,"circRNA_Sample_R2.fastq.gz",compress = TRUE, format="fastq")
-
+# Can create fastq file as follows
+Biostrings::writeXStringSet( fastqReads$read1,"circRNA_Sample_R1.fastq.gz",compress = TRUE, format="fastq")
+Biostrings::writeXStringSet( fastqReads$read2,"circRNA_Sample_R2.fastq.gz",compress = TRUE, format="fastq")
 
 }
