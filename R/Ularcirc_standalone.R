@@ -119,7 +119,7 @@ bsj_to_circRNA_sequence <- function(BSJ, geneID=NULL, genome, TxDb, annotationLi
 
     b <- b[,c("TXCHROM","EXONSTART","EXONEND","TXID","EXONSTRAND")]
     names(b) <- c('chrom', 'start', 'stop', 'gene','strand')
-    b <- as.data.table(b)
+    b <- data.table::as.data.table(b)
 
     # Short list exons
 #    BSJ_donor <- as.numeric(min(BSjuncDetails[[1]][c(2,4)]))
@@ -165,7 +165,7 @@ bsj_to_circRNA_sequence <- function(BSJ, geneID=NULL, genome, TxDb, annotationLi
     circRNA_Sequence <- paste(circRNA_Sequence,tmp,sep="",collapse = "")
     }
 
-    circRNA_Sequence <- Biostring::DNAString(circRNA_Sequence)
+    circRNA_Sequence <- Biostrings::DNAString(circRNA_Sequence)
     return(circRNA_Sequence)
   }
 
