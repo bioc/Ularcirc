@@ -32,7 +32,9 @@ circRNA_seq_example <- "GGAAGAGGAAGAACGTCTGAGAAATAAAATTCGAGCTGATCATGAGAAGGCCTTGG
 #'
 #' # You can also retrieve sequence without passing gene annotation - but this is slower
 #' # circRNA_sequence <- bsj_to_circRNA_sequence(BSJ, NULL, genome,TxDb, annotationLibrary)
-#'
+#' @import GenomicRanges
+#' @import GenomicAlignments
+#' @import S4Vectors
 #' @export
 bsj_to_circRNA_sequence <- function(BSJ, geneID=NULL, genome, TxDb, annotationLibrary)
 {
@@ -207,6 +209,7 @@ bsj_to_circRNA_sequence <- function(BSJ, geneID=NULL, genome, TxDb, annotationLi
 #' # Can create fastq file as follows
 #' Biostrings::writeXStringSet( fastqReads$read1,"circRNA_Sample_R1.fastq.gz",compress = TRUE, format="fastq")
 #' Biostrings::writeXStringSet( fastqReads$read2,"circRNA_Sample_R2.fastq.gz",compress = TRUE, format="fastq")
+#' @import Biostrings
 #'
 #' @export
 bsj_fastq_generate <- function(circRNA_Sequence, fragmentLength=300, readLength=100, variations = 4, headerID='')
