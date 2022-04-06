@@ -6,8 +6,8 @@ library(DT)
 # library(gsubfn)			# Use strapplyc
 library(Biostrings)
 require(GenomicFeatures)
-library(Sushi)
-library(moments)
+#library(Sushi)
+#library(moments)   # skewness and kurtosis
 library(Organism.dplyr)
 
 
@@ -136,6 +136,7 @@ circJunctions<-function(All_junctions, chrom, chromstart, chromend, fileID = c(-
 ##
 circFigure_template1 <-function(GeneObject, chrom, chromstart, chromend, zoom_coords, JunctionOption, Junction_highlight=list(BSjunc=NULL, Canonical=NULL), currentGeneSymbol=NULL)
 {
+ # browser()
   junc <- GeneObject$Junctions
   if (length(junc) == 0)
 	{	cat(paste("length of zero (junc) in circFigure_template1"))
@@ -153,10 +154,19 @@ circFigure_template1 <-function(GeneObject, chrom, chromstart, chromend, zoom_co
 	if (JunctionOption > 0)	# Junction type filter is set therefore extract the junction type to view
 	{
 	  # Plot Gene Transripts
-	  pg = plotGenes(display_transcript,chrom,chromstart,chromend ,
+#	  browser()
+	  transcript_colours <- rep(x = 1,nrow(display_transcript))
+	  if (GeneObject$SelectedTranscript != "")
+	  {
+	    transcript_idx <- which(display_transcript$gene == GeneObject$SelectedTranscript)
+	    transcript_colours[transcript_idx] <- 80
+	  }
+
+	  pg = plotGenes(display_transcript,chrom,chromstart,chromend , colorby = transcript_colours,
 	                 #                types = display_transcript$type,
-	                 #                colorby=log10(display_transcript$score+0.001),
-	                 #                colorbycol= SushiColors(5),colorbyrange=c(0,1.0),
+	                 #                colorby=transcript_colours,
+	                                 colorbycol= colorRampPalette(c("blue", "red")),
+	                                 colorbyrange=c(0,100),
 	                 labeltext=TRUE,maxrows=50,height=0.4,plotgenetype="box")
 	  labelgenome( chrom, chromstart,chromend,n=3,scale="Mb")
 
@@ -184,10 +194,6 @@ circFigure_template1 <-function(GeneObject, chrom, chromstart, chromend, zoom_co
 	                             name=bedJunctions$name, score=bedJunctions$total,
 	                             strand1=bedJunctions$strand, strand2=bedJunctions$strand)
 
-#	  bedJunctions <- as.dataframe(bedJunctions) # [,.(chrom, start, start, chrom, end, end, name, total, strand, strand)]
-
-#	  bedJunctions <- cbind(bedJunctions[,.(chrom, start, start, chrom, end, end, name, total, strand, strand)]
-#	  setnames(bedJunctions,1:10,c("chrom1","start1", "end1", "chrom2", "start2", "end2", "name", "score", "strand1", "strand2"))
 
 	  pbpe = plotBedpe(bedJunctions, chrom, chromstart, chromend, heights = bedJunctions$score, plottype="loops", color = color_to_graph)
 	  labelgenome(chrom, chromstart,chromend,n=3,scale="Mb")
@@ -196,8 +202,11 @@ circFigure_template1 <-function(GeneObject, chrom, chromstart, chromend, zoom_co
 	  mtext("Linear junctions",side=3,line=0,cex=.75,font=1.5)
 
 	  ### Plot backsplice junctions
-#	  browser()
-	  bedJunctions <- junc$uniques.bed[JunctionType==JunctionOption,]	}
+#browser()
+	  bedJunctions <- junc$uniques.bed[JunctionType==JunctionOption,]	
+	}
+	
+	
 	  typeIV_idx <-  which(bedJunctions$JunctionType == -1)
 	  if (length(typeIV_idx) > 0)
 	  { bedJunctions <- bedJunctions[(typeIV_idx * -1), ]   # Currently not plotting type IV BSJs
@@ -244,6 +253,79 @@ circFigure_template1 <-function(GeneObject, chrom, chromstart, chromend, zoom_co
 
 }
 
+
+###############################################################################
+# circFigure_plotGardener
+#
+# Note not currently using JunctionOption. At one stage was thining of using 
+#     this as a way to filter out/in type IV BSJ. Currently ignoring them.
+#
+# New plotting template that uses plotGardener
+circFigure_plotGardener <-function(GeneObject, chrom, chromstart, chromend, zoom_coords, JunctionOption, Junction_highlight=list(BSjunc=NULL, Canonical=NULL), currentGeneSymbol=NULL)
+{
+  # browser()
+  junc <- GeneObject$Junctions
+  if (length(junc) == 0)
+  {	cat(paste("length of zero (junc) in circFigure_plotGardener"))
+    return (NULL)
+  }
+  
+  # Extract information on transcripts. Output not currently used.
+  # Hopefully plotGardener will allow transcript colouring in future.
+  display_transcript <- data.frame(GeneObject$Transcript)
+
+  transcript_colours <- rep(x = "black",nrow(display_transcript))
+  if (GeneObject$SelectedTranscript != "")
+  {
+    transcript_idx <- which(display_transcript$gene == GeneObject$SelectedTranscript)
+    transcript_colours[transcript_idx] <- "orange"
+  }
+    
+  ## Assemble linear junctions. 
+  temp <- group_by(GeneObject$Transcript_Canonical_juncs, chrom, start, name,  end, strand)
+  bedJunctions <- as.data.table(summarise(temp,total=sum(score)))
+  color_to_graph <- rep("black",nrow(bedJunctions))
+  if (! is.null(Junction_highlight$Canonical$Chr))
+  {
+    BSjunc_idx <- bedJunctions[(chrom == as.character(Junction_highlight$Canonical$Chr)) &
+                      (start == as.numeric(Junction_highlight$Canonical$Start)) &
+                      (end == as.numeric(Junction_highlight$Canonical$End)),which = TRUE]
+    color_to_graph[BSjunc_idx] <- "red"
+  }
+  FSJcolours <- color_to_graph
+  FSJ_data <- data.table(chrom1=bedJunctions$chrom, start1=bedJunctions$start,
+                        end1=bedJunctions$start, chrom2=bedJunctions$chrom,
+                        start2=bedJunctions$end, end2=bedJunctions$end,
+                        name=bedJunctions$name, score=bedJunctions$total,
+                       strand1=bedJunctions$strand, strand2=bedJunctions$strand)
+    
+  ### Prepare backsplice junctions
+  BSJ_data <- junc$uniques.bed[JunctionType==JunctionOption,]	
+ 
+  # Filter out type IV junctions - not plotting these
+  typeIV_idx <-  which(BSJ_data$JunctionType == -1)
+  if (length(typeIV_idx) > 0)
+  { BSJ_data <- BSJ_data[(typeIV_idx * -1), ] }
+  
+  ## set BSJ colours
+  color_to_graph <- rep("black",nrow(BSJ_data))  # Default colour = black
+  if (! is.null(Junction_highlight$BSjunc))
+  {
+    idx.BSJ <- which(BSJ_data$name == Junction_highlight$BSjunc)
+    color_to_graph[idx.BSJ] <- "cyan"      # Colour user selected junction light blue
+  }
+  BSJcolours <- color_to_graph
+  
+  plot_AllJunctions(assembly="hg38", chrom=chrom, 
+                    chromstart=chromstart, chromend=chromend,
+                    BSJData=BSJ_data, BSJ_colors = BSJcolours,
+                    FSJData=FSJ_data, FSJ_colors = FSJcolours,
+                    geneSymbol=currentGeneSymbol) 
+   
+}
+
+
+
 #################################################################################
 ### Extracts genomic coordinates of a Gene, draws image and returns exon boundaries as dataframe object
 ##
@@ -261,7 +343,9 @@ Prepare_Gene_Object <- function(GeneName, BS_Junctions, GeneList, File_idx = c(-
     return(NULL)
   }
 
-  test <- gsubfn::strapplyc(as.character(GeneName),pattern="^ENSG([-0-9]+)")
+#  test <- gsubfn::strapplyc(as.character(GeneName),pattern="^ENSG([-0-9]+)")
+  test0 <- gsubfn::strapplyc(as.character(GeneName),pattern="^(ENS[[:alpha:]]*).*")
+  test <- gsubfn::strapplyc(as.character(GeneName),pattern=paste0("^",test0[[1]],"([-0-9]+)"))
   if (length(test[[1]]) > 0)  # Ensembl ID
   { ensembl_gene <- paste("ENSG",test[[1]],sep="")
     a <- try(select(GeneList$Annotation_Library, keys = ensembl_gene, columns=c("ENTREZID", "SYMBOL", "ENSEMBL"),keytype="ENSEMBL"),silent=TRUE)
@@ -273,9 +357,15 @@ Prepare_Gene_Object <- function(GeneName, BS_Junctions, GeneList, File_idx = c(-
 
   if (length(grep(pattern="Error", x=a)))
   {
+    blurb <- HTML(paste0("Please check the following: <br>
+                          (i) is the annotation database loaded (under setup tab)
+                          <br>(ii) did you annotate with parental gene (if using STAR output)
+                          <br>(iii) check if annotated gene name is correct. Possibly even navigating
+                          to gene name via Display_gene_transcripts on left hand side panel.
+                          <br><br>It is also possible (although unlikely) that there is no entry for this gene.
+                          <br><br>No loop plots can be displayed until this issue is resolved."))
     showModal(modalDialog(title="Cannot retrieve genomic information for this gene",
-            "Check that you have loaded an annotation database under the setup tab. Alternatively there is no entry for this gene.
-             No loop plots can be displayed until a database is loaded.",easyClose=TRUE,footer=NULL))
+                              blurb, easyClose=TRUE,footer=NULL))
     return ( NULL )
   }
   lookupID <- a$ENTREZID   # Default lookup
@@ -394,25 +484,36 @@ Draw_Transcript_Exons<-function(GeneObject, JunctionOption, Zoom_coords, GenomeD
 	   }
 	}
 
-#	if (length(GeneObject$Junctions) == 4)	# Have some circRNAs to display
   if (length(grep(pattern = "uniques.bed", x = names(GeneObject$Junctions))))
-	{   circFigure_template1(GeneObject = GeneObject,chrom = chrom,chromstart=chromstart, chromend=chromend, JunctionOption=JunctionOption, Junction_highlight=Junction_highlight, currentGeneSymbol=currentGeneSymbol )
+	{#   circFigure_template1(GeneObject = GeneObject,chrom = chrom,chromstart=chromstart, chromend=chromend, JunctionOption=JunctionOption, Junction_highlight=Junction_highlight, currentGeneSymbol=currentGeneSymbol )
+    circFigure_plotGardener(GeneObject = GeneObject,
+                            chrom = chrom,   chromstart=chromstart, 
+                            chromend=chromend, 
+                            JunctionOption=JunctionOption, 
+                            Junction_highlight=Junction_highlight, 
+                            currentGeneSymbol=currentGeneSymbol )
 	}
 
 	if (length(GeneObject$Junctions) == 1)	# No circRNAs to display. Just show transcript
-	{ if (length(GeneObject$Transcript_Canonical_juncs) == 7 ) # We have canonical junctions to view but no Backsplice.
-  	{
+	{ if (length(GeneObject$Transcript_Canonical_juncs) == 7 ) # Must contain 7 columns
+  	{# Canonical junctions to view but no Backsplice junctions.
 	    # Make a dummy backsplice junction object
 	    GeneObject$Junctions <- list()
 	    GeneObject$Junctions$uniques.bed <- GeneObject$Transcript_Canonical_juncs[1,]
 	    GeneObject$Junctions$uniques.bed$score <- 0
 	    GeneObject$Junctions$uniques.bed$JunctionType <- 1
-      circFigure_template1(GeneObject = GeneObject,chrom = chrom,chromstart=chromstart, chromend=chromend,
-                           JunctionOption=JunctionOption, currentGeneSymbol=currentGeneSymbol )
+      #circFigure_template1(GeneObject = GeneObject,
+	    circFigure_plotGardener(GeneObject = GeneObject,
+                           chrom = chrom,chromstart=chromstart, 
+                           chromend=chromend,
+                           JunctionOption=JunctionOption, 
+                           currentGeneSymbol=currentGeneSymbol )
 
 	  }
-	  if (length(GeneObject$Transcript_Canonical_juncs) != 7 )
-	  { plotGenes(GeneObject$Transcript, chrom, chromstart, chromend, maxrows=50,height=0.4,plotgenetype="box")	}
+
+	  # 
+#	  if (length(GeneObject$Transcript_Canonical_juncs) != 7 )
+#	  { plotGenes(GeneObject$Transcript, chrom, chromstart, chromend, maxrows=50,height=0.4,plotgenetype="box")	}
 
 	  } # if (length(GeneObject$Junctions) == 1)
 }
@@ -439,8 +540,33 @@ Draw_Transcript_Exons<-function(GeneObject, JunctionOption, Zoom_coords, GenomeD
 ##  Note I think I have doubled up on GeneList and the gene transcript present in GeneObject. LEaving for now.. it works
 Gene_Transcript_Features <- function (GeneList, Gene_Symbol, GeneObject)
 {
-  a <- select(GeneList$Annotation_Library, keys = Gene_Symbol, columns=c("ENTREZID", "SYMBOL"),keytype="SYMBOL")
-  b <- select(GeneList$transcript_reference, keys = a$ENTREZID, columns=c('GENEID', 'TXNAME', 'EXONRANK'),keytype="GENEID")
+#  a <- select(GeneList$Annotation_Library, keys = Gene_Symbol, columns=c("ENTREZID", "SYMBOL"),keytype="SYMBOL")
+#  b <- select(GeneList$transcript_reference, keys = a$ENTREZID, columns=c('GENEID', 'TXNAME', 'EXONRANK'),keytype="GENEID")
+
+# Following code provided by Wong-Ziyi  
+  test0 <- gsubfn::strapplyc(as.character(Gene_Symbol),pattern="^(ENS[[:alpha:]]*).*")
+  test <- gsubfn::strapplyc(as.character(Gene_Symbol),pattern=paste0("^",test0[[1]],"([-0-9]+)"))
+  if (length(test[[1]]) > 0)  # Ensembl ID
+  {
+    ensembl_gene <- paste(test0[[1]],test[[1]],sep="")
+    a <- select(GeneList$Annotation_Library, keys = Gene_Symbol, columns=c("ENTREZID", "SYMBOL", "ENSEMBL"),keytype="ENSEMBL")
+    if("EXONRANK"%in%keytypes(GeneList$transcript_reference)){
+      b <- select(GeneList$transcript_reference, keys = a$ENSEMBL, columns=c('GENEID', 'TXNAME'),keytype="GENEID")
+    }else{
+      b <- select(GeneList$transcript_reference, keys = a$ENSEMBL, columns=c('GENEID', 'TXNAME', 'EXONRANK'),keytype="GENEID")
+    }
+  }
+  else
+  {
+    a <- select(GeneList$Annotation_Library, keys = Gene_Symbol, columns=c("ENTREZID", "SYMBOL"),keytype="SYMBOL")
+    if("EXONRANK"%in%keytypes(GeneList$transcript_reference)){
+      b <- select(GeneList$transcript_reference, keys = a$ENTREZID, columns=c('GENEID', 'TXNAME'),keytype="GENEID")
+    }else{
+      b <- select(GeneList$transcript_reference, keys = a$ENTREZID, columns=c('GENEID', 'TXNAME', 'EXONRANK'),keytype="GENEID")
+    }
+  }
+# End of code provided by Wong-ziyi  
+  
   Num_Transcripts <- length(unique(b$TXNAME))
   Num_Exons_Per_Transcript <- {}
   for(i in 1:length(unique(b$TXNAME)))
@@ -585,8 +711,8 @@ Fragment_Alignment_Distribution<-function(BSJ_table)
   FirstSeg_RAD <- 	1 - ((FirstSeg_Range[2] - FirstSeg_Range[1]) / 250)   # * FirstSeg_DFR
   SecondSeg_RAD <- 	1 - ((SecondSeg_Range[2] - SecondSeg_Range[1]) / 250) # * SecondSeg_DFR
 
-  FirstSeg_RAD <- skewness(FirstSeg_position)  # kurtosis(FirstSeg_position)
-  SecondSeg_RAD <- skewness(SecondSeg_position) # kurtosis(SecondSeg_position)
+  FirstSeg_RAD <- moments::skewness(FirstSeg_position)  # moments::kurtosis(FirstSeg_position)
+  SecondSeg_RAD <- moments::skewness(SecondSeg_position) # moments::kurtosis(SecondSeg_position)
 
   return (list(FirstSeg_RAD = FirstSeg_RAD, SecondSeg_RAD = SecondSeg_RAD, FirstSeg_position = FirstSeg_position, SecondSeg_position = SecondSeg_position))
 
@@ -680,9 +806,9 @@ LoadJunctionData <- function(filename, ChromFilter, StrandFilter, Genomic_Distan
   ext_BSJ_output <- list(CE2_data=NULL, CIRI2_data=NULL)     # CircExplorer2 Data
   ext_FSJ_output <- list(regtools=NULL)                      # QORTS?
 
-
+  # Set defaults
+  total_rows <- 0; n_UniqueJunctions <- 0;   n_UniqueJunctions_PostFilt <- 0;
   ncolumns <- 1
-  n_UniqueJunctions_PostFilt <- 0
 
 	# AddColumns function populates a column with a unique identifier for backsplice junctions plus a column for input file ID
 	AddColumns <- function(junc, File_Index)
@@ -712,18 +838,18 @@ LoadJunctionData <- function(filename, ChromFilter, StrandFilter, Genomic_Distan
 	#                 <SampleID>.SJ.out.tab
 	#
 	# Filter for accepted file types by extension only
-	filename_idx <- grep(pattern = "\\.out.tab(.gz|)$", x = filename$name)
-	filename_idx <- c(filename_idx, grep(pattern = "\\.Chimeric.out.junction(.gz|)$", x = filename$name))
+	filename_idx <- grep(pattern = "(\\.|)out.tab(.gz|)$", x = filename$name)
+	filename_idx <- c(filename_idx, grep(pattern = "(\\.|)Chimeric.out.junction(.gz|)$", x = filename$name))
 	filename_idx <- c(filename_idx, grep(pattern = "\\.ce(.gz|)$", x = filename$name))
 	filename_idx <- c(filename_idx, grep(pattern = "\\.ciri(.gz|)$", x = filename$name))
 
 	failed_IDs <- setdiff(filename$name, filename$name[filename_idx])
 #browser()
 	# Trim extensions of all acceptible filetypes, will use as names throughout Ularcirc experience.
-	IDs <- unique(gsub(pattern="\\.Chimeric.out.junction(.gz|)$",replacement="",x=filename$name[filename_idx]))
-	IDs <- unique(gsub(pattern="\\.SJ.out.tab(.gz|)$",replacement="",x=IDs))
+	IDs <- unique(gsub(pattern="(\\.|)Chimeric.out.junction(.gz|)$",replacement="",x=filename$name[filename_idx]))
+	IDs <- unique(gsub(pattern="(\\.|)SJ.out.tab(.gz|)$",replacement="",x=IDs))
 	IDs <- unique(gsub(pattern="\\.rtSJ.out.tab(.gz|)$",replacement="",x=IDs))
-	IDs <- unique(gsub(pattern="\\.ReadsPerGene.out.tab(.gz|)$",replacement="",x=IDs))
+	IDs <- unique(gsub(pattern="(\\.|)ReadsPerGene.out.tab(.gz|)$",replacement="",x=IDs))
 	IDs <- unique(gsub(pattern="\\.ce(.gz|)$",replacement="",x=IDs))
 	IDs <- unique(gsub(pattern="\\.ciri(.gz|)$",replacement="",x=IDs))
 
@@ -731,49 +857,49 @@ LoadJunctionData <- function(filename, ChromFilter, StrandFilter, Genomic_Distan
 	SampleList <- list()  # Will build list of ID names which will be assigned to Groupings
 
 withProgress(message="Importing data. This could take a few minutes", value=0, {
-	for (i in 1: length(IDs))
+  ID_index <- 0
+	for (i in IDs)
 	{
+	  ID_index <- ID_index + 1
 	  ######## READ in BSJ counts ##############
 	  incProgress(1/(length(IDs)*2), detail = paste("Loading BSJ for file number ", i))
-	  Chimeric_Idx <- grep(pattern=paste(IDs[i],".Chimeric.out.junction(.gz|)",sep=""), x=filename$name )
+	  Chimeric_Idx <- grep(pattern=paste(i,"(\\.|)Chimeric.out.junction(.gz|)",sep=""), x=filename$name )
 	  if (length(Chimeric_Idx) > 0)
 	  { FileTypeCounts$STAR_BSJ <<- FileTypeCounts$STAR_BSJ + 1
-	    data_set <- fread(filename$datapath[Chimeric_Idx[1]], sep="\t")
+#	    data_set <- fread(filename$datapath[Chimeric_Idx[1]], sep="\t", fill = TRUE)
+#	  browser()
+	    starChimeric <- Ularcirc::loadSTAR_chimeric(filename$datapath[Chimeric_Idx[1]],
+	                                                ID_index= ID_index,
+	                                                returnColIdx=1:14)
+	    data_set <- starChimeric$data_set
 	    total_rows <- nrow(data_set)
 	    n_UniqueJunctions <- length(table(data_set$BSjuncName))
-	    if (ncol(data_set) != 14)
-	    {   if (ncol(data_set == 15))  # STAR 2.6 has 15 columns
-	          data_set <- data_set[,1:14]
-	    }
-	    if (ncol(data_set) == 14)           # Chimeric Junction data file from STAR aligner
-	    { IDs_idx <- c(IDs_idx, IDs[i])
-	      setnames(data_set,1:14,c("chromDonor","startDonor","strandDonor", "chromAcceptor","startAcceptor","strandAcceptor",
-	                           "JuncType", "RepeatLength_L", "RepeatLength_R",  "ReadName","FirstBase_1stSeq","CIGAR_1stSeg",
-	                           "FirstBase_2ndSeq","CIGAR_2ndSeg"))
-	      data_set$BSjuncName <- paste(data_set$chromDonor,data_set$startDonor,data_set$chromAcceptor, data_set$startAcceptor,sep="_")
-	      data_set$DataSet <-  i	# This adds an index to identify the file
+
+	    # if (ncol(data_set) != 14)
+	    # {   if (ncol(data_set == 15))  # STAR 2.6 has 15 columns
+	    #       data_set <- data_set[,1:14]
+	    # }
+	    if (ncol(data_set) == 16)           # Chimeric Junction data file from STAR aligner
+	    { IDs_idx <- c(IDs_idx, i)
+	      # setnames(data_set,1:14,c("chromDonor","startDonor","strandDonor", "chromAcceptor","startAcceptor","strandAcceptor",
+	      #                      "JuncType", "RepeatLength_L", "RepeatLength_R",  "ReadName","FirstBase_1stSeq","CIGAR_1stSeg",
+	      #                      "FirstBase_2ndSeq","CIGAR_2ndSeg"))
+	      # data_set$BSjuncName <- paste(data_set$chromDonor,data_set$startDonor,data_set$chromAcceptor, data_set$startAcceptor,sep="_")
+	      # data_set$DataSet <-  ID_index	# This adds an index to identify the file
+
 	      DataLists <- FilterChimeric(All_junctions = data_set, ChromFilter=ChromFilter, StrandFilter=StrandFilter, Genomic_Distance=Genomic_Distance, RAD_filter=RAD_filter, CanonicalJuncs=CanonicalJuncs)
-######################################### Can possibly delete this line
-  #	    DataLists$SummaryData <- SelectUniqueJunctions(DataLists$RawData)   # May not need this line
-#########################################
 
   		  DataType <- c("BackSplice")
 	      n_UniqueJunctions_PostFilt <- length(table(data_set$BSjuncName))
 
 	      # Merge Dataset to master table
 	      if (! is.null(AllData))
-	      {  # We should have 15 columns of data at this stage. Merge everything.
+	      {
   	      if ((ncol(DataLists$RawData) > 1) && (ncol(AllData) == ncol(DataLists$RawData)) )
-	        {
-	          AllData<-rbind(AllData,DataLists$RawData)
-	     #     SummarisedData <- rbind(SummarisedData, DataLists$SummaryData)
-  	      }
+	        { AllData<-rbind(AllData,DataLists$RawData)   }
 	      }
 	      if (is.null(AllData))
-	      {
-	     #   SummarisedData <- DataLists$SummaryData
-	        AllData <- DataLists$RawData
-	      }
+	      { AllData <- DataLists$RawData  }
 	    } # if (ncol(data_set) == 14)
 	  } # if (Chimeric_Idx > 0)
 	  else   # There is no chimeric data imported. Make a dummy entry
@@ -781,9 +907,9 @@ withProgress(message="Importing data. This could take a few minutes", value=0, {
 	                           JuncType=0, RepeatLength_L=0, RepeatLength_R=0,  ReadName="fake",FirstBase_1stSeq=0,CIGAR_1stSeg="0M",
 	                           FirstBase_2ndSeq=0,CIGAR_2ndSeg="0M")
 	    data_set$BSjuncName <- paste(data_set$chromDonor,data_set$startDonor,data_set$chromAcceptor, data_set$startAcceptor,sep="_")
-	    data_set$DataSet <-  1
+	    data_set$DataSet <-  ID_index
 	    DataLists <- FilterChimeric(All_junctions = data_set, ChromFilter=ChromFilter, StrandFilter=StrandFilter, Genomic_Distance=Genomic_Distance, RAD_filter=RAD_filter, CanonicalJuncs=CanonicalJuncs)
-	#    SummarisedData <- DataLists$SummaryData
+
 	    AllData <- DataLists$RawData
 	    total_rows=1
 	    n_UniqueJunctions=1
@@ -792,13 +918,12 @@ withProgress(message="Importing data. This could take a few minutes", value=0, {
 
 	  ######## READ in STAR FSJ counts ##############
 	  incProgress(1/(length(IDs)*2), detail = paste("Loading FSJ for file number ", i))
-	  Linear_Idx <- grep(pattern=paste(IDs[i],".SJ.out.tab(.gz|)",sep=""), x=filename$name )
+	  Linear_Idx <- grep(pattern=paste(i,"(\\.|)SJ.out.tab(.gz|)",sep=""), x=filename$name )
 	  if (length(Linear_Idx) > 0)
-	  { FileTypeCounts$STAR_FSJ <<- FileTypeCounts$STAR_FSJ + 1
-	    data_set <- fread(filename$datapath[Linear_Idx[1]], sep="\t")
+	  { data_set <- fread(filename$datapath[Linear_Idx[1]], sep="\t")
 
 	    if (ncol(data_set) == 9)            # Linear Junction data file from STAR aligner
-	    { IDs_idx <- c(IDs_idx, IDs[i])
+	    { IDs_idx <- c(IDs_idx, i)
 	      DataType <- c("Canonical")
 	      ## Canonical junctions originally look like this:
 	      # c("chrom1","start1","end1","strand","intron_motif", "annotated", "unique_counts", "multi_mapped_counts", "overhang")
@@ -806,19 +931,19 @@ withProgress(message="Importing data. This could take a few minutes", value=0, {
 	      # chrom1   start1     end1 chrom2   start2     end2   name score  strand1 strand2
 	      data_set <- data_set[,.(V1,V2,V3, V1,  V7, V4)]
 	      setnames(data_set,1:6,c("chrom","start","end","name",  "score", "strand"))
-	      data_set$DataSet <-  i	   # This adds an index to identify the file
+	      data_set$DataSet <-  ID_index	   # This adds an index to identify the file
 
 	      # Merge data
 	      if (! is.null(Canonical_AllData))
 	      {  Canonical_AllData <- rbind(Canonical_AllData, data_set)  }
 	      else
 	      {  Canonical_AllData <- data_set         }
-
+	      FileTypeCounts$STAR_FSJ <<- FileTypeCounts$STAR_FSJ + 1
 	    }
 	  }
 
 	  ######## READ in regtools FSJ counts ##############
-	  Linear_Idx <- grep(pattern=paste(IDs[i],".rtSJ.out.tab(.gz|)",sep=""), x=filename$name )
+	  Linear_Idx <- grep(pattern=paste(i,".rtSJ.out.tab(.gz|)",sep=""), x=filename$name )
 	  if (length(Linear_Idx) > 0)
 	  { FileTypeCounts$REGTOOLS <<- FileTypeCounts$REGTOOLS + 1
   	  data_set <- fread(filename$datapath[Linear_Idx[1]], sep="\t")
@@ -826,26 +951,21 @@ withProgress(message="Importing data. This could take a few minutes", value=0, {
   	                             "blockStart", "blockEnd","colour", "blockNumber",
   	                             "blockSizes","blockStarts"))
   	  if (ncol(data_set) == 12)            # BED file format generated from regtools
-  	  { IDs_idx <- c(IDs_idx, IDs[i])
+  	  { IDs_idx <- c(IDs_idx, i)
 
   	    blocks <- strsplit(data_set$blockSizes, ",")
   	    blocks <- do.call(rbind, blocks)
 
   	    data_set$start <- data_set$start + as.numeric(blocks[,1])
   	    data_set$end <- data_set$end - as.numeric(blocks[,2])
-
+#browser()
   	    # Create a integer strand column from text column
   	    negativeStrandIDX <- which(data_set$strandCHAR =="-")
   	    data_set$strand <- 1
   	    data_set$strand[negativeStrandIDX] <- 2
 
-
     	  data_set <- data_set[,.(chrom,start,end,name,score,strand)]
-
-#    	  setnames(data_set,1:10,c("chrom1","start1","end1","chrom2","start2","end2",
- #   	                           "name","score", "strand1", "strand2"))
-    	  #  Canonical_SummarisedData <- data_set
-    	  data_set$DataSet <-  i	   # This adds an index to identify the file
+    	  data_set$DataSet <-  ID_index	   # This adds an index to identify the file
 
     	  # Merge data
     	  if (! is.null(Canonical_AllData))
@@ -857,24 +977,27 @@ withProgress(message="Importing data. This could take a few minutes", value=0, {
 
 
     ######## READ in gene counts ##############
-	  ReadsPerGene_Idx <- grep(pattern=paste(IDs[i],".ReadsPerGene.out.tab(.gz|)",sep=""), x=filename$name )
+	  ReadsPerGene_Idx <- grep(pattern=paste(i,"(\\.|)ReadsPerGene.out.tab(.gz|)",sep=""), x=filename$name )
 	  if (length(ReadsPerGene_Idx) > 0)
 	  { data_set <- {}
 	    data_set <- fread(filename$datapath[ReadsPerGene_Idx[1]], sep="\t")
 	    if (ncol(data_set) != 4)
 	    { next } # Data file corrupt or incorrect
 	    else # Good data set
-	    {  # Remove gene name column and store separately. Ensure it is same as first upload
-	      ReadsPerGeneIDs <- data_set[,1]
+	    { # Note: Summary stats in first 4 rows are not removed here
+	      ReadsPerGeneIDs <- data_set[,1]  # Copy gene ID
 	      ## Currently assuming every upladed data set is built on same gene list.
 	      ## Perhaps should do a check here?
 
-	      data_set[,1] <- 1:length(ReadsPerGeneIDs)
+	      # Blank out gene names to save space.
+	      data_set[,1] <- ' '
+	      # At this point in time keep summary info so that they can be quickly filtered out when calculating total gene counts
+	      data_set[1:4,1] <- ReadsPerGeneIDs[1:4]
 	    }
 
-	    IDs_idx <- c(IDs_idx, IDs[i])  # Records a successful import by storing sample name
+	    IDs_idx <- c(IDs_idx, i)  # Records a successful import by storing sample name
 	    setnames(data_set,1:4, c("geneName","unstranded","Fstrand","Rstrand"))
-	    data_set$DataSet <- i
+	    data_set$DataSet <- ID_index
 	    if (! is.null(ReadsPerGene_Data))
 	    {    ReadsPerGene_Data <- rbind(ReadsPerGene_Data, data_set) }
 	    else
@@ -882,11 +1005,11 @@ withProgress(message="Importing data. This could take a few minutes", value=0, {
 	  }
 
 	  #  Load in circExplorer2 data set
-	  CE2_Idx <- grep(pattern=paste(IDs[i],".ce(.gz|)",sep=""), x=filename$name )
+	  CE2_Idx <- grep(pattern=paste(i,".ce(.gz|)",sep=""), x=filename$name )
 	  if (length(CE2_Idx) > 0)
 	  {	FileTypeCounts$CE2 <<- FileTypeCounts$CE2 + 1
 
-	    IDs_idx <- c(IDs_idx, IDs[i])
+	    IDs_idx <- c(IDs_idx, i)
 	    ce_output <- read.table(filename$datapath[CE2_Idx[1]], header = FALSE, sep ="\t")
       colnames(ce_output) <- c("chrom", "start","stop","ce_ID","JuncType", "strandDonor","thickStart","thickEnd",
                              "RBG","exonsCircularized", "exonSizes", "blockStarts","Freq", "classification",
@@ -894,14 +1017,14 @@ withProgress(message="Importing data. This could take a few minutes", value=0, {
 
       ce_output$stop <- as.numeric(as.character(ce_output$stop)) + 1
       ce_output$BSjuncName  <- paste(ce_output$chrom,":", ce_output$start,"-", ce_output$stop,":",ce_output$strandDonor,sep="")
-      ce_output$DataSet <- i
+      ce_output$DataSet <- ID_index
       if (! is.null(ext_BSJ_output$CE2_data))
       {    ext_BSJ_output$CE2_data <- rbind(ext_BSJ_output$CE2_data, ce_output) }
       else
       {    ext_BSJ_output$CE2_data <- ce_output    }
 	  }
 	  #######################  Load in CIRI2 data set #####################
-	  ciri_Idx <- grep(pattern=paste(IDs[i],".ciri(.gz|)",sep=""), x=filename$name )
+	  ciri_Idx <- grep(pattern=paste(i,".ciri(.gz|)",sep=""), x=filename$name )
 	  if (length(ciri_Idx) > 0)
 	  {
 	    ciri_output <- read.table(filename$datapath[ciri_Idx[1]], header = TRUE, sep ="\t", fill = TRUE, comment.char="")
@@ -913,8 +1036,8 @@ withProgress(message="Importing data. This could take a few minutes", value=0, {
       if (! is.null(ciri_output$gene_id))  # Only can proceed if gene model is loaded.
       {
         FileTypeCounts$CIRI <<- FileTypeCounts$CIRI + 1
-        IDs_idx <- c(IDs_idx, IDs[i])
-  	    ciri_output$DataSet <- i
+        IDs_idx <- c(IDs_idx, i)
+  	    ciri_output$DataSet <- ID_index
 
   	    if (! is.null(ext_BSJ_output$CIRI2_data))
   	    {    ext_BSJ_output$CIRI2_data <- rbind(ext_BSJ_output$CIRI2_data, ciri_output) }
@@ -924,26 +1047,29 @@ withProgress(message="Importing data. This could take a few minutes", value=0, {
 	  }
 
 
-	  listID <- paste("Group_",i,sep="")
-    SampleList[listID] <- IDs[i]
-	 } # 	for (i in 1: length(IDs))
-
+	  listID <- paste("Group_",ID_index,sep="")
+    SampleList[listID] <- i
+	 } # 	for (i in IDs)
+  #browser()
+  cat("Data all loaded")
 
 }) # withProgress
 
   IDs_idx <- unique(IDs_idx)   # List of all IDs that were successfully loaded
   failed_IDs <- c(failed_IDs, setdiff(IDs, IDs_idx))
-
-  blurb <- HTML(paste("One or more files failed to load either because they had the wrong
-                 extension or were not of the correct format. File must end with either <br>
-                 .SJ.out.tab <br> <b>or</b> <br> .ReadsPerGene.out.tab <br><b>or</b> <br>
-                .Chimeric.out.junction. <br><br>
-                 <b>Please review the following files that failed to upload:</b><br>",
-                      paste(failed_IDs,sep="<br>")))
   IDs <- IDs_idx
 
   if (length(failed_IDs) > 0) # Provide user feedback with failed files
-  { showModal(modalDialog(title="Issues with some selected files",blurb,easyClose=TRUE,footer=NULL))
+  {  blurb <- HTML(paste("One or more files failed to load either because they had the wrong
+                          extension or were not of the correct format. File extensions must be either
+                          <br> .SJ.out.tab <br> <b>or</b>
+                          <br> .ReadsPerGene.out.tab <br> <b>or</b>
+                          <br> .Chimeric.out.junction. <br> <b>or</b>
+                          <br> .ce <b>or</b>  <br> .ciri
+                          <br><br>
+                         <b>Please review the following files that failed to upload:</b><br>",
+                         paste(failed_IDs,sep="<br>")))
+    showModal(modalDialog(title="Issues with some/all selected files",blurb,easyClose=TRUE,footer=NULL))
   }
 
 	return(list(Junctions=AllData, SummarisedData=NULL,
@@ -1325,7 +1451,8 @@ ensembl_to_geneName <- function(ensembl_IDs, input)
 
   # Ensure incoming list has correct format (i.e. sometimes have ENSG000001234.11).
   # In this situation the .11 needs to be removed.
-  ensembl_IDs <- gsubfn::strapplyc(as.character(ensembl_IDs),"^ENSG[0-9]+")
+#  ensembl_IDs <- gsubfn::strapplyc(as.character(ensembl_IDs),"^ENSG[0-9]+")
+  ensembl_IDs <- gsubfn::strapplyc(as.character(ensembl_IDs),"^ENS[0-9]+")
   ensembl_IDs <- lapply(ensembl_IDs,FUN = function(x){if (length(x)==0) x='Novel'; return(x)})
   ensembl_IDs <- unlist(ensembl_IDs)
 
@@ -1373,8 +1500,6 @@ withProgress(message="Annotating table", value=0, {
 	incProgress(1/3, detail = paste("Assembling BSJ table"))
 	gr_positions <- GRanges(string_coordinates)
 
-
-
 	# Identify SYMBOL function and extract all genes symbols
 #	Annotation_Library <- get(input$Annotation_lib)
 	all_functions <- ls(paste("package", input$Annotation_lib, sep=":"))
@@ -1391,6 +1516,30 @@ withProgress(message="Annotating table", value=0, {
 #	row.names(geneSymbols) <- geneSymbols$gene_id
 
 	g_GR <- genes(GeneList$transcript_reference)
+
+	# Start check to see if aligned data is compatible with annotation database
+	matchingChromosomes <- intersect(seqlevels(gr_positions), seqlevels(g_GR))
+  if (length(matchingChromosomes) == 0)
+  { # No chromosomes align - this is suspicious.
+    blurb <- {}
+    seqlevelsStyle(gr_positions) <- "UCSC"
+    matchingChromosomes <- intersect(seqlevels(gr_positions), seqlevels(g_GR))
+    if (length(matchingChromosomes) > 0)
+    { # Solved a chromosome compatibility issue. Complete fix and report to user.
+      blurb <- c('Detected mismatched chromosome naming between sequencing data. Have been able to partly fix this issue.
+              However it is strongly advised to select the Fix chromosome compatibility button on this page and then re-save data')
+
+    }
+    else
+    {
+      blurb <- 'Ularcirc has detected no matching chromosomes of top circRNA candidates to annotation
+                 database. Therefore entries will be annotated as NOVEL. You might need to check what
+                reference your data was aligned to.'
+    }
+    showModal(modalDialog(title="NOTICE: mismatched references",blurb,easyClose=TRUE,footer=NULL))
+
+  }
+
 	all_hits <- findOverlaps(invertStrand(gr_positions) , genes(GeneList$transcript_reference))
 	identified_geneIDs <- g_GR[subjectHits(all_hits)]$gene_id
 	identified_gene_symbols <- geneSymbols[identified_geneIDs,2]
@@ -1439,28 +1588,18 @@ extractGenomeSequence <- function(chr, start, end, strand, GeneList)
 ## NOTE: This was originally designed purely for backsplice junction analysis and because of this the column names are from
 ## STAR junction output tables. It is now also used for canonical splice junctions.
 ##
-Grab_BS_Junc_Sequence <- function(SelectUniqueJunct_Value, GeneList)
+Grab_BS_Junc_Sequence <- function(SelectUniqueJunct_Value, GeneList, Seq_length = 125)
 {
   toDisplay <- c("Error, No coordinate data to extract or no BSJ selected")
 #browser()
   if ((nrow(SelectUniqueJunct_Value) >= 1) && (SelectUniqueJunct_Value[1] != "ACTION REQUIRED"))
   { # Initially assume we have backsplice junciton
-    Seq_length <- 125
-
 
     Donor <- list()
     Acceptor <- list()
     # Following if statements work for illumina Truseq data. Need to identify if this works for same stranded libraries
     TranscriptStrand <- SelectUniqueJunct_Value$strandDonor[1]
     Transcriptchrom <- SelectUniqueJunct_Value$chromDonor[1]   # This should be same for donor and acceptor
-
-    if ((TranscriptStrand == '-') && (SelectUniqueJunct_Value$type[1] == 'bs'))  # Need to swap donor and acceptor for BS junctions only
-    {
-      tmp <- SelectUniqueJunct_Value$startDonor[1]
-      SelectUniqueJunct_Value$startDonor[1] <- SelectUniqueJunct_Value$startAcceptor[1]
-      SelectUniqueJunct_Value$startAcceptor[1] <- tmp
-    }
-
 
     if (TranscriptStrand == '+')
     { Donor$start <- SelectUniqueJunct_Value$startDonor[1] - Seq_length -1
@@ -1480,11 +1619,14 @@ Grab_BS_Junc_Sequence <- function(SelectUniqueJunct_Value, GeneList)
         Acceptor$start <- SelectUniqueJunct_Value$startAcceptor[1] +1
     }
 
-    # Need to test for kit type . i.e. Same strand or opposing.
-    if (TranscriptStrand =="+")
-      TranscriptStrand <- "-"
-    else
-      TranscriptStrand <- "+"
+
+    if (SelectUniqueJunct_Value$type[1] != 'bs')
+    {      # For canonical junctions need to test for kit type . i.e. Same strand or opposing.
+      if (TranscriptStrand =="+")
+        TranscriptStrand <- "-"
+      else
+        TranscriptStrand <- "+"
+    }
 
     DonorSequence <- extractGenomeSequence(Transcriptchrom, Donor$start, Donor$end, TranscriptStrand, GeneList = GeneList)
     AcceptorSequence <- extractGenomeSequence(Transcriptchrom, Acceptor$start, Acceptor$end, TranscriptStrand, GeneList = GeneList)
@@ -1514,9 +1656,15 @@ Grab_BS_Junc_Sequence <- function(SelectUniqueJunct_Value, GeneList)
 ## This function loads miRBase, extracts the species specific miRNAs and then searches for seed patterns
 ## within sequence
 ##
+## Need a way to extract organism name. Perhaps like this
+##   a <- as.data.frame(org.Hs.eg_dbInfo())
+##
+## seed_offset : Nucleotides to at start of mature miRNA that are not seed sequence.
+## rev_comp : The sequence_to_examin should be the reverse complement of a miRNA. If false then sequence must be identical
+##
 ## Written by David Humphreys, May 2017
 ##
-miR_binding_site_Analysis <- function(Sequence_to_examine, species_code, seed_length=6)
+miR_binding_site_Analysis <- function(Sequence_to_examine, species_code, seed_length=6, seed_offset=1, selected_miRs = NULL, rev_comp = TRUE)
 {
   if (length(seed_length) == 0)
   {  seed_length <- 6 }
@@ -1539,7 +1687,7 @@ miR_binding_site_Analysis <- function(Sequence_to_examine, species_code, seed_le
           # Get the MATURE for ALL elements of xx
           mature_miRs <- mget(mapped_keys[hsa_mapped_keys], x)   # This is a mirnaMATURE class
           b <- lapply(mature_miRs,matureFrom)      # Start positions.   Replace matureFrom with matureTo for end positions
-          seed_start <- lapply(b, FUN=function(x) { x + 1})
+          seed_start <- lapply(b, FUN=function(x) { x + seed_offset})
 
           # Function to Extract seed sequence
           build_seed_list <- function(stem_loops, seed_start, seed_length)
@@ -1556,7 +1704,9 @@ miR_binding_site_Analysis <- function(Sequence_to_examine, species_code, seed_le
           allseeds <- unlist( mapply(build_seed_list, stem_loops, seed_start, seed_length) )
           all_unique_seeds <- unique(allseeds)  #unique destroys names
           seed_df <- as.data.frame(allseeds)
-          Sequence_to_examine <- reverseComplement(Sequence_to_examine)
+          if (rev_comp)
+          { Sequence_to_examine <- reverseComplement(Sequence_to_examine)  }
+
           Sequence_to_examine <- gsub(pattern = "T",replacement = "U",x = Sequence_to_examine)
           ## Find seed matches in sequence
           SeedMatchResult <-  mapply(FUN = function(x,y)
@@ -1912,8 +2062,8 @@ debug(debugme)
       if (input$BSJ_data_source == "CircExplorer2")
       {#browser()
         subsetted_by_sample <- subset(Ularcirc_data$ProjectData$ext_BSJ_output$CE2_data,DataSet %in% idx[[1]])
-        temp <- group_by(subsetted_by_sample, geneSymbol, BSjuncName,  strandDonor)
-        temp <- summarise(temp,total=sum(Freq))
+        temp <- dplyr::group_by(subsetted_by_sample, geneSymbol, BSjuncName,  strandDonor)
+        temp <- dplyr::summarise(temp,total=sum(Freq))
         SubsettedData<- data.table(Gene=temp$geneSymbol, Freq=temp$total, BSjuncName=temp$BSjuncName, strandDonor=temp$strandDonor)
         rm(temp)
 
@@ -2039,14 +2189,15 @@ debug(debugme)
 })
 
 
-	#########################################3
+	##################################################################
 	## PartialPooledDataSet
-	# This function will build table on either individual or grouped selected individual data sets.
+	# This function will build table on STAR data from either individual
+	 # or grouped selected individual data sets.
 
 	PartialPooledDataSet <- observeEvent(input$buildTable_Button, { # reactive({
 	  if (length(input$BSJ_data_source) == 0)   # No data loaded
 	  {	  return(NULL)  }
-
+#browser()
 
 	  if (input$BSJ_data_source != "STAR")
 	  { return(NULL)}
@@ -2090,6 +2241,7 @@ debug(debugme)
         # Filter data sets for the selected sample
 	      BSJ_junctions <- Filter_by_Data_Set(fileID=idx[[1]], All_junctions = Ularcirc_data$ProjectData$Junctions)
 	      FSJ_junctions <- Filter_by_Data_Set(fileID=idx[[1]], All_junctions = Ularcirc_data$ProjectData$Canonical_AllData)
+	      GeneCounts    <- Filter_by_Data_Set(fileID=idx[[1]], All_junctions = Ularcirc_data$ProjectData$ReadsPerGene_Data)
 
 	      if (input$BSJ_data_source == "STAR")
 	      {
@@ -2138,11 +2290,13 @@ debug(debugme)
   	                                            MaxDisplay = nrow(toDisplay$RAW),
   	                                            input$LibraryStrandType, input=input)
   	        }
+            rowsLeft = nrow(toDisplay$RAW)
             # Apply RAD filter if requested
   	        if (input$Display_RAD_Score)
   	        {  idx_to_remove<- Identify_poor_RAD(toDisplay$RAW$TypeII_TypeIII)
   	           if (length(idx_to_remove) > 0)
   	           { toDisplay$RAW <- toDisplay$RAW[-1*idx_to_remove,] }
+  	           rowsLeft <- rowsLeft - length(idx_to_remove)
   	        }
             # Apply FSJ filter if requested
             if (input$Apply_FSJ_Filter)
@@ -2150,13 +2304,21 @@ debug(debugme)
               idx_to_remove <-  which(toDisplay$RAW$FSJ_support < 1)
               if (length(idx_to_remove) > 0)
               { toDisplay$RAW <- toDisplay$RAW[-1*idx_to_remove,]  }
+              rowsLeft <- rowsLeft - length(idx_to_remove)
             }
+            if (rowsLeft <= 0)
+            { blurb <- paste0("RAD and/or FSJ filters left no data!
+                              You can modify these filter settings by selecting
+                              'display filter options' on left hand tab.")
+              showModal(modalDialog(title="Filter applied",blurb,easyClose=TRUE,footer=NULL))
+            }
+
             toDisplay$RAW <- toDisplay$RAW[,.(Gene, Freq,BSjuncName,TypeII_TypeIII, strandDonor, FSJ_support, JuncType)]
           }
 
 
 
-	        if (input$Percent_of_Parent)  # If requested annotate with parental transcript abundance
+	        if (input$Annotate_FSJ_coverage)  # If requested annotate with parental transcript abundance
 	        { # Get list of all genes and build table
 	          toDisplay$RAW <- Annotate_with_av_FSJ_coverage(toDisplay_df=toDisplay$RAW , GeneList=GeneList(), File_idx=idx,
 	                                        BS_Junctions=Ularcirc_data$ProjectData$Junctions,
@@ -2165,20 +2327,26 @@ debug(debugme)
 	        }
 
 	        toDisplay$CPM <- toDisplay$RAW
+	        toDisplay$CPM_GENE <- toDisplay$RAW
 	        toDisplay$CPM$Freq <- round((toDisplay$RAW$Freq / toDisplay$TOTAL_COUNTS * 1000000),2)
 	        toDisplay$CPM_GENE$Freq <- 0
 
 	        if (typeof(Ularcirc_data$ProjectData$ReadsPerGene_Data) != "NULL")  # Make sure exists
           {  if (dim(Ularcirc_data$ProjectData$ReadsPerGene_Data)[2] == 5)    # Make sure has correct number of columns
-            { 	Gene_Counts <- colSums(Ularcirc_data$ProjectData$ReadsPerGene_Data[-1:-5,2:5])
+            {
+              gname <- GeneCounts$geneName
+              idx_remove <- which(gname =="N_unmapped" | gname =="N_multimapping" | gname == "N_noFeature"
+                                | gname == "N_ambiguous")  * -1
 
-                if (input$LibraryStrandType == "Unstranded")
-                {  toDisplay$CPM_GENE$Freq <- toDisplay$RAW$Freq/Gene_Counts["unstranded"]  }
-                if (input$LibraryStrandType == "Opposing strand")
-                {  toDisplay$CPM_GENE$Freq <- toDisplay$RAW$Freq/Gene_Counts["Rstrand"]  }
-                if (input$LibraryStrandType == "Same Strand")
-                {  toDisplay$CPM_GENE$Freq <- toDisplay$RAW$Freq/Gene_Counts["Fstrand"] }
-                # input$LibraryStrandType
+              Gene_Counts <- colSums(GeneCounts[idx_remove,2:5])
+
+              if (input$LibraryStrandType == "Unstranded")
+              {  toDisplay$CPM_GENE$Freq <- round(toDisplay$RAW$Freq/Gene_Counts["unstranded"] * 10000000,3)  }
+              if (input$LibraryStrandType == "Opposing strand")
+              {  toDisplay$CPM_GENE$Freq <- round(toDisplay$RAW$Freq/Gene_Counts["Rstrand"]* 10000000,3)  }
+              if (input$LibraryStrandType == "Same Strand")
+              {  toDisplay$CPM_GENE$Freq <- round(toDisplay$RAW$Freq/Gene_Counts["Fstrand"]* 10000000,3) }
+              # input$LibraryStrandType
             }
 	        }
 	        Ularcirc_data$PartialPooledDataSet <- toDisplay
@@ -2188,7 +2356,7 @@ debug(debugme)
 	  }  # if (length(grep(pattern = "Selected", x = input$Annotation_Options)) > 0)
 
 
-###################3# Prepare table for grouped data sets #####################
+#################### Prepare table for grouped data sets #####################
 	  if ((length(grep(pattern = "Grouped", x = input$Annotation_Options)) > 0)   # Prepare comparison table
 	      && (! is.null(PrepareGroupOptions())) )   # Check there are groups defined. There should be always at least one.
 	  {
@@ -2429,7 +2597,7 @@ withProgress(message="Fixing blank BSJ : ", value=0, {
 	    else
 	    {  toDisplay$RAW$Gene <- '' }
 
-	    if (input$Percent_of_Parent)   	    ## Add parental transcript abundance annotation here
+	    if (input$Annotate_FSJ_coverage)   	    ## Add parental transcript abundance annotation here
 	    {
 	        toDisplay$RAW <- Annotate_with_av_FSJ_coverage(toDisplay_df=toDisplay$RAW , GeneList=GeneList(), File_idx=idx,
 	                                                       BS_Junctions=Ularcirc_data$ProjectData$Junctions,
@@ -2471,13 +2639,34 @@ withProgress(message="Fixing blank BSJ : ", value=0, {
 	    },
 	    content = function(con) {
 	      if (input$Normalisation == "Raw counts")
-	        write.csv(Ularcirc_data$PartialPooledDataSet$RAW,con)
+	      {
+	        data_to_export <- Ularcirc_data$PartialPooledDataSet$RAW
+	        if (input$BSJ_data_source == "CircExplorer2")
+	        { data_to_export <- Ularcirc_data$External_BSJ_DataSet$CE2$RAW }
+	        else if (input$BSJ_data_source == "CIRI")
+	        { data_to_export <- Ularcirc_data$External_BSJ_DataSet$CIRI$RAW }
+	      }
 	      else if (input$Normalisation == "CPM_Gene")
-	        write.csv(Ularcirc_data$PartialPooledDataSet$CPM_GENE,con)
+	      {
+	        data_to_export <- Ularcirc_data$PartialPooledDataSet$CPM_GENE
+	        if (input$BSJ_data_source == "CircExplorer2")
+	        { data_to_export <- Ularcirc_data$External_BSJ_DataSet$CE2$CPM_GENE }
+	        else if (input$BSJ_data_source == "CIRI")
+	        { data_to_export <- Ularcirc_data$External_BSJ_DataSet$CIRI$CPM_GENE }
+	      }
 	      else
-	        write.csv(Ularcirc_data$PartialPooledDataSet$CPM,con)
+	      {
+	        data_to_export <- Ularcirc_data$PartialPooledDataSet$CPM
+	        if (input$BSJ_data_source == "CircExplorer2")
+	        { data_to_export <- Ularcirc_data$External_BSJ_DataSet$CE2$CPM }
+	        else if (input$BSJ_data_source == "CIRI")
+	        { data_to_export <- Ularcirc_data$External_BSJ_DataSet$CIRI$CPM }
+	      }
+	      write.csv(data_to_export, con)
 	    }
 	)
+
+
 
 	output$downloadGroupedJunctionCountTable <- downloadHandler(
 	  filename=function() {
@@ -2528,7 +2717,7 @@ withProgress(message="Fixing blank BSJ : ", value=0, {
 	    #write.csv(Ularcirc_data$CanonicalJunctionCountTable,filename)
 	    pdf(filename)
 	    circs <- circRNA_Subset()
-	    if (is.null(circs))  # This will return NULL if no gene model database is loaded
+	    if (is.null(circs))  # return NULL if no gene model database is loaded
 	    { return (NULL) }
 
 	    layout(matrix(c(#1,1,1,
@@ -2541,8 +2730,10 @@ withProgress(message="Fixing blank BSJ : ", value=0, {
 	    par(mar=c(3,4,1,1))
 	    Zoom_coords <- View_Gene_At_Coords()
 	    DTE <- Draw_Transcript_Exons(circs, JunctionOption(), Zoom_coords,
-	                                 Junction_highlight=list(BSjunc=Ularcirc_data$Current_Selected_BS_Junction, Canonical = Ularcirc_data$SelectedCanonical),
-	                                 currentGeneSymbol=Ularcirc_data$Current_SelectedGene)
+	                           Junction_highlight=list(
+	                           BSjunc=Ularcirc_data$Current_Selected_BS_Junction, 
+	                           Canonical = Ularcirc_data$SelectedCanonical),
+	                           currentGeneSymbol=Ularcirc_data$Current_SelectedGene)
 	    dev.off()
 	  }
 	)
@@ -2599,23 +2790,36 @@ withProgress(message="Fixing blank BSJ : ", value=0, {
 
 		  cat(paste("\nRequesting Gene Object for", Ularcirc_data$Current_SelectedGene,date()))
 
-
-		  Canonical_Junctions <- Ularcirc_data$ProjectData$Canonical_AllData
-		  if (input$FSJ_data_source == "Regtools")
+      if (length(Ularcirc_data$ProjectData$Canonical_AllData) > 0)
+      { Canonical_Junctions <- Ularcirc_data$ProjectData$Canonical_AllData  }
+		  if (length(input$FSJ_data_source) > 0)
 		  {
-		    Canonical_Junctions <- Ularcirc_data$ProjectData$ext_FSJ_output$regtools
+  		  if (input$FSJ_data_source == "Regtools")
+  		  {
+  		    Canonical_Junctions <- Ularcirc_data$ProjectData$ext_FSJ_output$regtools
+  		  }
 		  }
-
+#browser()
 		  PGO<-Prepare_Gene_Object(Ularcirc_data$Current_SelectedGene, BS_Junctions = Ularcirc_data$ProjectData$Junctions,
 		                                      GeneList= GeneList(), File_idx = idx,
 		                                      Canonical_Junctions = Canonical_Junctions)
 		  if (is.null(PGO))
 		  {  return(PGO) }
 
-
+		  # Record selected transcripts into PGO object so it can be referenced when preparing figures
+      PGO$SelectedTranscript <- ''
+#      if (exists("Ularcirc_data$SelectedTranscript"))
+      if (length(intersect(names(Ularcirc_data), "SelectedTranscript")) > 0)
+      {
+        if (! is.null(Ularcirc_data$SelectedTranscript))
+        { PGO$SelectedTranscript <- Ularcirc_data$SelectedTranscript }
+      }
+#browser()
       # Following is saved for display purposes only
-		  Ularcirc_data$CanonicalJunctionCountTable <- PGO$Transcript_Canonical_juncs
+      Ularcirc_data$CanonicalJunctionCountTable <- PGO$Transcript_Canonical_juncs
 
+      if (length(input$BSJ_data_source) == 0)   # No BSJ data loaded - perhaps only loaded FSJ data.
+      {         return(PGO)  }
 
 		  if (input$BSJ_data_source != "STAR")
 		  {
@@ -2669,6 +2873,7 @@ withProgress(message="Fixing blank BSJ : ", value=0, {
 		    # Ularcirc_data$BackSpliceJunctionCountTable <- PGO$Junctions$uniques.bed
 		    cat(paste("\n-Prepared Gene Object",date()))
       }
+
 		  return(PGO)    # 	PGO =  (list(Transcript=Transcript, Junctions=Junc.bed, Transcript_Canonical_juncs= Transcript_Canonical_juncs))
 	})
 
@@ -2686,7 +2891,13 @@ withProgress(message="Fixing blank BSJ : ", value=0, {
 	})
 
 	output$TranscriptTable <- renderDataTable ({
-	  datatable(AssembleTranscriptTable(), selection='single',options = list(lengthMenu = c(5, 10, 50), pageLength = 5))
+	  toDisplay <- AssembleTranscriptTable()
+	  any_selected <- 0
+	  if (! is.null(Ularcirc_data$SelectedTranscript))
+	  { any_selected <- which(toDisplay$TranscriptID == Ularcirc_data$SelectedTranscript) }
+	  datatable(toDisplay, #selection='single',
+	            selection=list(mode='single', selected = any_selected, target = 'row'),
+	            options = list(lengthMenu = c(5, 10, 50), pageLength = 5))
 	})
 
 	output$ExonTable <- renderDataTable ({
@@ -2703,7 +2914,54 @@ withProgress(message="Fixing blank BSJ : ", value=0, {
 
 	   BSJ_table_header <- paste(input$BSJ_data_source,': Junction table of selected data sets', sep="")
 
-    h4(BSJ_table_header)
+
+    w <- h4(BSJ_table_header)
+    w <- paste(w, actionButton("checkChrom","Fix chromosome compatibility"))
+    HTML(w)
+
+	})
+
+	observeEvent(input$checkChrom, {
+	  # Test if chromosome entries match annotation database. If not try and ammend
+
+
+	  # Take first 1000 chimeric alignments
+	  max_entries <- nrow(Ularcirc_data$ProjectData$Junctions)
+	  if (max_entries > 1000)
+	  {  max_entries <- 1000 }
+
+	  chrom_entries <- Ularcirc_data$ProjectData$Junctions$chromDonor[1:max_entries]
+
+#	  browser()
+	  # Check if annotation database is loaded.
+	  geneInfo  <- GeneList()
+	  if (! is.null(geneInfo))
+	  {
+	    geneInfo  <- GeneList() # (transcript_reference=TxDb, Genome=Genome, Annotation_Library = Annotation_Library, GeneList=GL))
+	    TxDb_levels <- seqlevels(geneInfo$transcript_reference)
+	    commonChrom <- intersect(TxDb_levels, chrom_entries)
+
+
+
+
+	    if (length(commonChrom) == 0)
+	    {
+	      chrom_entries <- paste0("chr",chrom_entries)
+	      commonChrom <- intersect(TxDb_levels, chrom_entries)
+	      if (length(commonChrom) > 0)
+	      {   Ularcirc_data$ProjectData$Junctions$chromDonor <- paste0("chr",Ularcirc_data$ProjectData$Junctions$chromDonor)
+	          Ularcirc_data$ProjectData$Junctions$chromAcceptor <- paste0("chr",Ularcirc_data$ProjectData$Junctions$chromAcceptor)
+	          Ularcirc_data$ProjectData$Canonical_AllData$chrom <- paste0("chr",Ularcirc_data$ProjectData$Canonical_AllData$chrom)
+	          showModal(modalDialog(title="Success","Modified chromosoome entries", easyClose=TRUE,footer=NULL))
+	      }
+	    }
+
+	  }
+
+	  #Ularcirc_data$GenePanelLoaded
+
+
+
 	})
 
 	output$DisplayJunctionCountTable<- renderDataTable({   # DisplayAllJunctions <- renderDataTable({
@@ -3060,15 +3318,33 @@ withProgress(message="Fixing blank BSJ : ", value=0, {
     }
     else if (input$Global_Analysis_Plots_Options == "circRNA size distribution")
     { # Not functional yet
- #     browser()
-      # Following code too slow... Will need to implement this a different way
+
+      # circExplorer data does not currently work
+
+
       genome <- GeneList()$Genome
       TxDb <- GeneList()$transcript_reference
-      annotationLibrary <- GeneList()$Annotaion_Library
-      circRNA_sequence <- BSJ_to_circRNA_sequence(BSJ = inputData$RAW$BSjuncName[1],
-                                   geneID = inputData$RAW$Gene[1],
+      annotationLibrary <- GeneList()$Annotation_Library
+
+      withProgress(message="Calculating circRNA predicted sizes", value=0, {
+#browser()
+        # Need to sublist based on count
+        lastColumn <- ncol(inputData$RAW)
+        threshold_idx <- apply(inputData$RAW[,3:lastColumn],1,FUN = function(x) {any(x > 4 )})
+        filtered_data <- inputData$RAW[threshold_idx,]
+
+
+
+        circRNA_sequence <- Ularcirc::bsj_to_circRNA_sequence(BSJ = filtered_data$BSjuncName,
+                                   geneID = as.character(filtered_data$Gene),
                                    genome = genome, TxDb = TxDb,
                                    annotationLibrary = annotationLibrary)
+
+      })      # withProgress(message="Calculating circRNA predicted sizes", value=0, {
+      if (which(names(circRNA_sequence) == "identified"))
+      { circRNA_sizes <- nchar(circRNA_sequence$identified)
+        hist(circRNA_sizes,breaks=100,main="distribution of predicted circRNA sizes")
+      }
     }
 
  	})
@@ -3180,10 +3456,97 @@ withProgress(message="Fixing blank BSJ : ", value=0, {
 	  # Set flag so that can display graphic?
 	})
 
+	output$DisplayTranscript_sequence <- renderText({  #renderUI ({
+	  # Recover selected transcript and display ORFs
+
+	  if (Ularcirc_data$SelectedTranscript == "")
+	  {
+	    toDisplay <- c("No transcript selected. Please select from transcript table under Gene view tab.")
+	  }
+	  else
+	  {	  strandDonor <- "+"
+  	  if (Ularcirc_data$CurrentExonTable$strand == 0)
+  	  {   strandDonor <- "-"  }
+
+  	  # Need to make a grangeslist
+  	  currentSelectedTx <- Ularcirc_data$CurrentExonTable[,-6]
+  	  currentSelectedTx$strand <- strandDonor
+  	  Tx_gr <- GenomicRanges::makeGRangesFromDataFrame(currentSelectedTx)
+  	  transcript_seq <-  GenomicFeatures::extractTranscriptSeqs(GeneList()$Genome, GenomicRanges::GRangesList(Tx_gr))
+
+  	  ORF_lengths <- {}
+  	  cDNA_of_ORF <- {}
+  	  all_long_ORFs <- {}   # keeps a record of all long ORF
+  	  longest_ORF_of_all <- 0
+  	  for (i in 1:3)
+  	  {
+  	    tmp_seq <- Biostrings::substr(transcript_seq,start=i,stop=Biostrings::width(transcript_seq))
+  	    amino_acid_seq <- Biostrings::translate(Biostrings::DNAString(tmp_seq))
+  	    ORFs <-  gsubfn::strapplyc(as.character(amino_acid_seq), pattern="M.*?\\*"  )
+  	    ORF_lengths <- c(unlist(lapply(ORFs[[1]],nchar)))
+  	    all_ORFs <- c(ORFs[[1]])
+
+  	    # Identify largest ORF
+ # browser()
+  	    longest_ORF <- max(ORF_lengths)
+  	    if (longest_ORF > longest_ORF_of_all)
+  	    {
+    	    largest_ORF_idx <- which(ORF_lengths == longest_ORF)
+    	    ORF_position <- gregexpr(pattern = all_ORFs[largest_ORF_idx], text = as.character(amino_acid_seq))  # this will identify position of ORF
+    	    start_pos <- (ORF_position[[1]][1]*3) - 2
+    	    end_pos <- (attr(ORF_position[[1]],"match.length") * 3) + start_pos       # ORF_position[[1]][2]   ::: length of match
+    	    cDNA_of_longest_ORF <- Biostrings::substr(x = tmp_seq, start= start_pos, stop= end_pos)
+    	    longest_ORF_of_all <- longest_ORF
+  	    }
+
+  	    # Record all cDNA for ORFs longer than 100 amino acids.
+  	    longORFs <- which(ORF_lengths >= input$Max_ORF_Length)
+  	    if (length(longORFs) > 0)
+  	    {
+    	    for (j in 1: length(longORFs) )
+    	    {
+    	      ORF_position <- gregexpr(pattern = all_ORFs[longORFs[j]], text = as.character(amino_acid_seq))  # this will identify position of ORF
+    	      start_pos <- (ORF_position[[1]][1]*3) - 2
+    	      end_pos <- (attr(ORF_position[[1]],"match.length") * 3) + start_pos
+    	      cDNA_of_ORF <- Biostrings::substr(x = tmp_seq, start= start_pos, stop= end_pos)
+    	      all_long_ORFs <- c(all_long_ORFs, cDNA_of_ORF)
+    	    }
+  	    }
+
+  	  }
+  	  toDisplay <- paste(as.character(transcript_seq))
+      if (input$ORFs_to_display == 1)
+    	  toDisplay <- paste(toDisplay, "\n\nlongest ORF is as follows: \n\n", cDNA_of_longest_ORF)
+      else
+      {
+        seqs <-paste("\n\n>ORF", "\n",all_long_ORFs, collapse="")
+        toDisplay <- c(toDisplay, seqs)
+      }
+	  }
+
+	  HTML(toDisplay)
+
+	})
+
+
 	output$DisplayBS_sequence <- renderUI ({
 	  UniqueJunctions <- Ularcirc_data$Current_Selected_BS_Junction_RAWData
 
-	  toDisplay <- Grab_BS_Junc_Sequence(UniqueJunctions, GeneList = GeneList())
+	  bsj_info <- Ularcirc::BSJ_details(Ularcirc_data$Current_Selected_BS_Junction)
+	  bsj_df <- data.frame(chromDonor=as.character(bsj_info$BSJ_chrom),
+	                                     startDonor=as.numeric(bsj_info$BSJ_donor),
+	                                     startAcceptor=as.numeric(bsj_info$BSJ_acceptor),
+	                                     strandDonor=as.character(bsj_info$strand),
+	                                     type="bs" )
+
+	  if (input$BSJ_data_source == "CIRI2")
+	  {
+	    bsj_df$startDonor <- bsj_df$startDonor + 1
+	    bsj_df$startAcceptor <- bsj_df$startAcceptor - 1
+	  }
+
+	  toDisplay <- Grab_BS_Junc_Sequence(bsj_df, GeneList = GeneList())
+
 	  toDisplay <- HTML(paste('<p><strong>JUNCTION SEQUENCE: </strong></p>  <p> The full stop represents the junction point::
                     <pre   style=display: block;padding: 9.5px;margin: 0 0 10px;font-size: 13px;line-height: 1.42857143;
 	                  color: #333;word-break: break-all;word-wrap: break-word;
@@ -3201,13 +3564,17 @@ withProgress(message="Fixing blank BSJ : ", value=0, {
 	output$Predicted_Genomic_Junction_Sequence <- renderUI ({
 	  FSJ_info <- Ularcirc_data$SelectedGenome_FSJ
 	  strandDonor <- "+"
-	  if (FSJ_info$Strand == 1)
-	  {   strandDonor <- "-" }
+	  if (length(FSJ_info$Strand) > 0)
+	  {   if (FSJ_info$Strand == 1)
+	   	  {   strandDonor <- "-" }
+	  }
 	  Canonical_Junc_Entry <- data.frame(chromDonor=as.character(FSJ_info$Chr),
 	                                     startDonor=as.numeric(FSJ_info$Start),
 	                                     startAcceptor=as.numeric(FSJ_info$End),
 	                                     strandDonor=strandDonor,
 	                                     type="c" )
+
+
 	  Genomic_FSJ_Sequence <- Grab_BS_Junc_Sequence(Canonical_Junc_Entry, GeneList = GeneList())
 
 	  Genomic_FSJ_Sequence <- HTML(paste('<p><strong>Predicted Genomic FSJ SEQUENCE: </strong></p>  <p>
@@ -3396,80 +3763,125 @@ withProgress(message="Fixing blank BSJ : ", value=0, {
 
 	})
 
+
+	miR_Target_Details <- reactive({
+	  BS <- update_miRNA_Sites()
+	  Binding_Sites <- BS$Binding_Sites
+	  circRNA_Sequence <- BS$circRNA_Sequence
+
+	  if(is.null(Binding_Sites))
+	  {   Explanation <- paste("0 miRNA sites (seed = ",input$miRNA_Seed_Length,")")
+    	  text(400,400,Explanation)
+    	  return()
+	  }
+	  Binding_Sites$SeedMatchResult <- lapply(Binding_Sites$SeedMatchResult, FUN= function(x) {
+	    if (length(x) >= as.numeric(input$miRNA_Multiples)) return(x) })
+	  ##
+	  ##  which(oligonucleotideFrequency(x = slc8a1,width = 6) == 7)
+	  ##
+	  Binding_Report <- unlist(Binding_Sites$SeedMatchResult)
+	  Binding_Report <- Binding_Report[Binding_Report > 0]
+	  if (length(Binding_Report) == 0)
+	  {
+	    Explanation <- paste("0 miRNA sites (multiple = ",input$miRNA_Multiples,")")
+	    text(400,400,Explanation)
+	    return()
+	  }
+	  names(Binding_Report) <- substr(names(Binding_Report),1,as.numeric(input$miRNA_Seed_Length))
+
+	  # Extract IDs
+	  miR_ID_idx <- list()
+	  miR_IDs <- list()
+	  df_for_display <- data.frame(ID={}, seed={}, position={})
+	  for(i in 1:length(Binding_Report))
+	  {   miR_ID_idx[[i]] <- which(Binding_Sites$miR_Seed_Lookup == names(Binding_Report)[i])
+    	  miR_IDs[[i]] <-  row.names(Binding_Sites$miR_Seed_Lookup)[miR_ID_idx[[i]]]
+	  # rbind(seed=names(Binding_Report)[i],
+	      oneRow <- cbind(ID=paste(row.names(Binding_Sites$miR_Seed_Lookup)[miR_ID_idx[[i]]], collapse=","),
+	                  seed=names(Binding_Report)[i], position = Binding_Report[i])
+	      df_for_display <- rbind(df_for_display, oneRow)
+	  }
+	  Ularcirc_data$selected_circRNA_stats$miRNA_BS_Sites <- df_for_display
+
+	  # Calculate positions to draw in circle
+	  miR_positions <- round(Binding_Report/nchar(as.character(circRNA_Sequence)) *360,0)  # Coordinates
+	  miR_length <- round(25/nchar(as.character(circRNA_Sequence)) *360,0)
+#browser()
+	  return(list(miR_positions= miR_positions, miR_length=miR_length, miR_IDs=miR_IDs))
+	})
+
+
 	output$miRNA_Options <- renderUI({
-	  w <- paste(selectizeInput("miRNA_Seed_Length",label="miRNA seed length",choices = 6:15, selected=7))
-	  w<- paste(w, selectizeInput("miRNA_Multiples",label="minimum number of miRNA multiples",choices = 1:15, selected=2))
+	  w <- paste(selectizeInput("miRNA_Seed_Length",label="miRNA seed length",choices = 6:10, selected=7))
+	  w<- paste(w, selectizeInput("miRNA_Multiples",
+	               label="Display only those miRNA that have the following minimum number of binding sites",
+	               choices = 1:15, selected=2))
+	  w <- paste(w,radioButtons("DisplaySelected_miRs",label="Display all or miRNAs from table below",
+	                          choices = c("All","Selected"), selected=c("All")))
+
 	  HTML(w)
 	})
 
 	update_miRNA_Sites <- reactive({
-	  if (is.null(input$miRNA_Seed_Length))
+	  if (is.null(input$miRNA_Seed_Length) || is.null(input$DisplaySelected_miRs))
 	  {  return(NULL) }
-	  circRNA_Sequence <- Predicted_CircRNA_Sequence(circRNA_exons = Ularcirc_data$circRNA_exons, genelist = GeneList())
-	  Binding_Sites <- miR_binding_site_Analysis(circRNA_Sequence, "hsa", seed_length=as.numeric(input$miRNA_Seed_Length))   # SeedMatchResult=SeedMatchResult, Total_miR_number=length(allseeds),  miR_Seed_Lookup
+	  selected_miRs <- NULL
+	  if (input$DisplaySelected_miRs != "All")
+	  {
+
+	  }
+	  withProgress(message="Processing miRNA sites. Please be patient", value=0, {
+	    incProgress(1/2, detail = paste("Analysing circRNA sequence"))
+
+  	  circRNA_Sequence <- Predicted_CircRNA_Sequence(circRNA_exons = Ularcirc_data$circRNA_exons, genelist = GeneList())
+  	  incProgress(1/2, detail = paste("Identifying miRNA binding sites"))
+  	  Binding_Sites <- miR_binding_site_Analysis(circRNA_Sequence, "hsa",
+  	                             seed_length=as.numeric(input$miRNA_Seed_Length),
+  	                             selected_miRs= selected_miRs)   # SeedMatchResult=SeedMatchResult, Total_miR_number=length(allseeds),  miR_Seed_Lookup
+
+	  })
+
     return(list(circRNA_Sequence=circRNA_Sequence, Binding_Sites=Binding_Sites)	)
 	})
 
+	output$kmer_Options <- renderUI({
+	  w <- paste(selectizeInput("kmer_Length",label="kmer length",choices = 5:12, selected=7))
+	  w<- paste(w, selectizeInput("kmer_display",
+	                              label="How many abundant kmers to display",
+	                              choices = 1:50, selected=10))
+	  HTML(w)
+	})
+
+
 	output$circRNA_Sequence_Analysis_miRNA <- renderPlot({
-	  par(mar=c(2, 2, 2, 2));
-	  plot(c(1,900), c(1,900), type="n", axes=FALSE, xlab="", ylab="", main="");
-	  draw.arc(xc=400,yc=400,r=400,w1=270,w2=630,col="blue", lwd=6)    # Draws circRNA
+	  withProgress(message="Preparing plot", value=0, {
+	    incProgress(1/6, detail = paste("Drawing circle"))
 
-	      BS <- update_miRNA_Sites()
-	      Binding_Sites <- BS$Binding_Sites
-	      circRNA_Sequence <- BS$circRNA_Sequence
+	    temp <- miR_Target_Details()
+	    if (is.null(temp))
+	    { return(NULL)}
 
-	      if(is.null(Binding_Sites))
-	      {   Explanation <- paste("0 miRNA sites (seed = ",input$miRNA_Seed_Length,")")
-	          text(400,400,Explanation)
-	          return()
-	      }
-	      Binding_Sites$SeedMatchResult <- lapply(Binding_Sites$SeedMatchResult, FUN= function(x) { if (length(x) >= as.numeric(input$miRNA_Multiples)) return(x) })
+  	  par(mar=c(2, 2, 2, 2));
+  	  plot(c(1,900), c(1,900), type="n", axes=FALSE, xlab="", ylab="", main="");
+  	  draw.arc(xc=400,yc=400,r=400,w1=270,w2=630,col="blue", lwd=6)    # Draws circRNA
 
-    	  hist_data <- unlist(lapply(X = Binding_Sites$SeedMatchResult,FUN = function(x) {as.numeric(x)}))
-    	  Ularcirc_data$selected_circRNA_stats$miRNA_BS_Sites <- hist_data
-    	  if (length(which(hist_data > 0)))
-    	  {
-    	    miR_match_idx <- which(hist_data > 0)
-    	    hist_data <- table(sapply(hist_data[miR_match_idx],length))
-    	    unmatched_miR <- Binding_Sites$Total_miR_number - sum(hist_data)
-    	  }
-    	  else
-    	  { hist_data <- c("0"=length(hist_data))  }
-    	  # barplot(hist_data, xlab="# binding sites", ylab="Numer of miRNA", main = paste(Ularcirc_data$SelectedGene_from_BSJ_Table, " circRNA", sep=""))
+  	  miR_positions <- temp$miR_positions
+  	  miR_length <- temp$miR_length
+  	  miR_IDs  <- temp$miR_IDs
 
-    	  Binding_Report <- unlist(Binding_Sites$SeedMatchResult)
-    	  Binding_Report <- Binding_Report[Binding_Report > 0]
-    	  if (length(Binding_Report) == 0)
-    	  {
-    	    Explanation <- paste("0 miRNA sites (multiple = ",input$miRNA_Multiples,")")
-    	    text(400,400,Explanation)
-    	    return()
-    	  }
+  	  for (i in 1:length(miR_positions))
+  	  {  if (miR_positions[i] > -1)
+  	    draw.arc(xc=400,yc=400,r=370,w1= miR_positions[i], w2 = miR_positions[i] + miR_length, col = "black",lwd=4, draw_tick=FALSE, Internal_Labels=miR_IDs[[i]][1])	  # Draws miRNA binding site
 
-    	  names(Binding_Report) <- substr(names(Binding_Report),1,as.numeric(input$miRNA_Seed_Length))
+  	  }
 
-    	  # Extract IDs
-    	  miR_ID_idx <- list()
-    	  miR_IDs <- list()
-    	  for(i in 1:length(Binding_Report))
-    	  {   miR_ID_idx[[i]] <- which(Binding_Sites$miR_Seed_Lookup == names(Binding_Report)[i])
-    	       miR_IDs[[i]] <-  row.names(Binding_Sites$miR_Seed_Lookup)[miR_ID_idx[[i]]]
-    	  }
+	  draw.text.w(xc=400,yc=400,r=430, w=270,
+	              n=paste(Ularcirc_data$SelectedGene_from_BSJ_Table, " circRNA", sep=""),
+	              col = "blue")
 
-
-    	  # Calculate positions to draw in circle
-    	  miR_positions <- round(Binding_Report/nchar(as.character(circRNA_Sequence)) *360,0)  # Coordinates
-    	  miR_length <- round(25/nchar(as.character(circRNA_Sequence)) *360,0)
-
-#	  browser()
-    	  for (i in 1:length(miR_positions))
-    	  {  if (miR_positions[i] > -1)
-    	       draw.arc(xc=400,yc=400,r=370,w1= miR_positions[i], w2 = miR_positions[i] + miR_length, col = "black",lwd=4, draw_tick=FALSE, Internal_Labels=miR_IDs[[i]][1])	  # Draws miRNA binding site
-
-    	  }
-    	  draw.text.w(xc=400,yc=400,r=430, w=270, n=paste(Ularcirc_data$SelectedGene_from_BSJ_Table, " circRNA", sep=""), col = "blue")
-
+  	  return(NULL)
+#  	  incProgress(1/6, detail = paste("updating miRNA sites"))
+	  })
 	})
 
 	output$circRNA_Sequence_Analysis_ORF <- renderPlot({
@@ -3509,15 +3921,67 @@ withProgress(message="Fixing blank BSJ : ", value=0, {
 	})
 
 	output$circRNA_Sequence_Analysis_Table <- renderDataTable({
-	  a <- Ularcirc_data$selected_circRNA_stats$miRNA_BS_Sites
-	  return(NULL)
+	#  browser()
+	  df <- Ularcirc_data$selected_circRNA_stats$miRNA_BS_Sites
+	  if (is.null(df))
+	  {return(NULL)}
+
+	  df_group <- group_by(df, seed)
+	  df_to_display <- summarise(df_group, binding_sites= length(position), position=paste(position, collapse = ","), ID=unique(ID))
+
 	})
+
+	output$kmer_Analysis_Table <- renderDataTable({
+	  if (is.null(input$kmer_Length))
+	    return (NULL)
+	  circRNA_Sequence <- Predicted_CircRNA_Sequence(circRNA_exons = Ularcirc_data$circRNA_exons, genelist = GeneList())
+	  oligo_freq <- Biostrings::oligonucleotideFrequency(x=circRNA_Sequence, width = as.numeric(input$kmer_Length))
+    oligo_freq <- sort(oligo_freq, decreasing=TRUE)[1:input$kmer_display]
+
+    to_display <- data.frame(seq=names(oligo_freq), count=oligo_freq)
+    to_display$miRNA_binding_site <- ''
+    to_display$miRNA_partial_seq <- ''
+#    to_display$seed <- 'No'
+
+  withProgress(message="Annotating kmers. Be patient", value=0, {
+    rowNumber <- nrow(to_display)
+
+    # loop through table and annotate
+    for(i in 1: rowNumber)
+    { incProgress(1/rowNumber, detail = paste("Annotating row ",i))
+      Sequence_to_examine <- DNAString(as.character(to_display[i,1]))
+      # look for miRNA seed (reverse complement)
+      Binding_Sites <- miR_binding_site_Analysis(Sequence_to_examine, 'hsa', seed_length=6, seed_offset=1, selected_miRs = NULL, rev_comp = TRUE)
+      Binding_Report <- unlist(Binding_Sites$SeedMatchResult)
+      Binding_Report <- Binding_Report[Binding_Report > 0]
+      if (length(Binding_Report) > 0)
+      { bs_idx <- which(Binding_Sites$miR_Seed_Lookup == names(Binding_Report)[1])
+        miR_ID <- row.names(Binding_Sites$miR_Seed_Lookup)[bs_idx]
+        to_display$miRNA_binding_site[i] <- miR_ID[1]
+      }
+      # look for miRNA seed (same sequence)
+      Binding_Sites <- miR_binding_site_Analysis(Sequence_to_examine, 'hsa', seed_length=6, seed_offset=1, selected_miRs = NULL, rev_comp = FALSE)
+      Binding_Report <- unlist(Binding_Sites$SeedMatchResult)
+      Binding_Report <- Binding_Report[Binding_Report > 0]
+      if (length(Binding_Report) > 0)
+      { bs_idx <- which(Binding_Sites$miR_Seed_Lookup == names(Binding_Report)[1])
+        miR_ID <- row.names(Binding_Sites$miR_Seed_Lookup)[bs_idx]
+        to_display$miRNA_partial_seq[i] <- miR_ID[1]
+      }
+
+
+    } # for(i in 1: nrow(to_display))
+  }) # withProgress(message="Annotating kmers. Be patient",
+    to_display
+	})
+
 
 	Genome_Coords <- observeEvent(input$Update_Genome_Position, #eventReactive(input$Update_Genome_Position,
 	  {	# This prepares a list of genome coordinates as submitted by user
 	      Ularcirc_data$Genome_Coordinates <- list(chrom=input$GenomeChrom_Input, chromstart=input$GenomeStart_Input,
 	          chromend=input$GenomeEnd_Input, chromstrand=input$GenomeStrand_Input)
 	})
+
 
 
 	Previous_m379 <- observeEvent(input$LoadProjectRequest,
@@ -3795,7 +4259,7 @@ withProgress(message="Fixing blank BSJ : ", value=0, {
   	  strand <- 1  # +ve strand
   	  if (Ularcirc_data$Genome_Coordinates$chromstrand == "-")
   	    strand <- 2
-
+#browser()
   	  BS_Junctions <- Ularcirc_data$ProjectData$Junctions
   	  BS_Junctions <- circJunctions(BS_Junctions ,Ularcirc_data$Genome_Coordinates$chrom,
   	                             Ularcirc_data$Genome_Coordinates$chromstart, Ularcirc_data$Genome_Coordinates$chromend,fileID=idx)
