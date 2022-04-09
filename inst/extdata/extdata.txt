@@ -1,2 +1,2 @@
 # This file points to a data directory
-DataPath = V:/NGS transit area/UlarcircData
+
