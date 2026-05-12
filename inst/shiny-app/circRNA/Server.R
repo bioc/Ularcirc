@@ -6,9 +6,10 @@ library(DT)
 # library(gsubfn)			# Use strapplyc
 library(Biostrings)
 require(GenomicFeatures)
+library(dplyr)
 #library(Sushi)
 #library(moments)   # skewness and kurtosis
-library(Organism.dplyr)
+#library(Organism.dplyr)
 
 
 options(shiny.maxRequestSize=900*1024^2)  # Set upper limit at 900MB
